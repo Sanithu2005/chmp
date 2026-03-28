@@ -1,0 +1,122 @@
+import { pgTable, text, timestamp, date, integer, uuid, boolean, pgEnum, doublePrecision } from "drizzle-orm/pg-core";
+
+// --- Enums ---
+export const userRoleEnum = pgEnum("user_role", ["parent", "medical_professional"]);
+export const genderEnum = pgEnum("gender", ["male", "female"]);
+export const bloodTypeEnum = pgEnum("blood_type", ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Unknown"]);
+export const appointmentTypeEnum = pgEnum("appointment_type", ["Routine", "Vaccination", "Follow-up"]);
+export const appointmentStatusEnum = pgEnum("appointment_status", ["upcoming", "completed", "cancelled"]);
+export const prescriptionStatusEnum = pgEnum("prescription_status", ["active", "pending", "completed", "cancelled"]);
+export const vaccinationStatusEnum = pgEnum("vaccination_status", ["upcoming", "due_this_week", "overdue", "administered"]);
+
+// --- Tables ---
+
+export const users = pgTable("users", {
+  id: text("id").primaryKey(), // better-auth uses text for ids by default
+  name: text("name").notNull(),
+  email: text("email").notNull().unique(),
+  emailVerified: boolean("email_verified").notNull(),
+  image: text("image"),
+  createdAt: timestamp("created_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull(),
+  role: userRoleEnum("role").notNull(),
+  licenseNumber: text("license_number"), // Only for medical professionals
+});
+
+export const sessions = pgTable("session", {
+  id: text("id").primaryKey(),
+  expiresAt: timestamp('expires_at').notNull(),
+  token: text('token').notNull().unique(),
+  createdAt: timestamp('created_at').notNull(),
+  updatedAt: timestamp('updated_at').notNull(),
+  ipAddress: text('ip_address'),
+  userAgent: text('user_agent'),
+  userId: text('user_id').notNull().references(()=> users.id, { onDelete: "cascade" })
+});
+
+export const accounts = pgTable("account", {
+  id: text("id").primaryKey(),
+  accountId: text('account_id').notNull(),
+  providerId: text('provider_id').notNull(),
+  userId: text('user_id').notNull().references(()=> users.id, { onDelete: "cascade" }),
+  accessToken: text('access_token'),
+  refreshToken: text('refresh_token'),
+  idToken: text('id_token'),
+  accessTokenExpiresAt: timestamp('access_token_expires_at'),
+  refreshTokenExpiresAt: timestamp('refresh_token_expires_at'),
+  scope: text('scope'),
+  password: text('password'),
+  createdAt: timestamp('created_at').notNull(),
+  updatedAt: timestamp('updated_at').notNull()
+});
+
+export const verifications = pgTable("verification", {
+  id: text("id").primaryKey(),
+  identifier: text('identifier').notNull(),
+  value: text('value').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  createdAt: timestamp('created_at'),
+  updatedAt: timestamp('updated_at')
+});
+
+export const patients = pgTable("patients", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  parentId: text("parent_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  dateOfBirth: date("date_of_birth").notNull(),
+  gender: genderEnum("gender").notNull(),
+  bloodType: bloodTypeEnum("blood_type").default("Unknown"),
+  registrationDate: timestamp("registration_date").notNull().defaultNow(),
+});
+
+export const vaccines = pgTable("vaccines", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  recommendedAgeWeeks: integer("recommended_age_weeks").notNull(),
+  description: text("description"),
+});
+
+export const vaccinationRecords = pgTable("vaccination_records", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  patientId: uuid("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+  vaccineId: uuid("vaccine_id").notNull().references(() => vaccines.id),
+  administeredById: text("administered_by_id").references(() => users.id),
+  dueDate: date("due_date").notNull(),
+  administeredDate: date("administered_date"),
+  batchNumber: text("batch_number"),
+  clinic: text("clinic"),
+  status: vaccinationStatusEnum("status").notNull().default("upcoming"),
+});
+
+export const growthRecords = pgTable("growth_records", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  patientId: uuid("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
+  weightKg: doublePrecision("weight_kg").notNull(),
+  heightCm: doublePrecision("height_cm").notNull(),
+  ageInWeeks: integer("age_in_weeks").notNull(),
+  recordedById: text("recorded_by_id").notNull().references(() => users.id),
+});
+
+export const appointments = pgTable("appointments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  patientId: uuid("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+  doctorId: text("doctor_id").notNull().references(() => users.id),
+  date: date("date").notNull(),
+  time: text("time").notNull(), // e.g. "10:00 AM"
+  type: appointmentTypeEnum("type").notNull(),
+  status: appointmentStatusEnum("status").notNull().default("upcoming"),
+  notes: text("notes"),
+});
+
+export const prescriptions = pgTable("prescriptions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  patientId: uuid("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+  doctorId: text("doctor_id").notNull().references(() => users.id),
+  medication: text("medication").notNull(),
+  dosage: text("dosage").notNull(),
+  startDate: date("start_date").notNull(),
+  endDate: date("end_date"),
+  status: prescriptionStatusEnum("status").notNull().default("active"),
+  notes: text("notes"),
+});
