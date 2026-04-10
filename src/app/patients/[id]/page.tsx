@@ -7,6 +7,7 @@ import {
   getChildPrescriptions,
   getChildGrowthRecords,
   getChildVaccinations,
+  isParentOfPatient,
 } from "@/lib/queries";
 import PatientDetail from "@/components/patient/patient-detail";
 import type { Metadata } from "next";
@@ -28,12 +29,10 @@ export default async function PatientDetailPage({
   const patient = await getPatientById(id);
   if (!patient) redirect("/");
 
-  // Parents can only view their own children
-  if (
-    session.user.role === "parent" &&
-    patient.parentId !== session.user.id
-  ) {
-    redirect("/parent");
+  // Parents can only view their linked children
+  if (session.user.role === "parent") {
+    const isLinked = await isParentOfPatient(session.user.id, id);
+    if (!isLinked) redirect("/parent");
   }
 
   const [appointments, prescriptions, growthRecords, vaccinations] =
@@ -47,6 +46,7 @@ export default async function PatientDetailPage({
   return (
     <PatientDetail
       userRole={session.user.role}
+      userMedicalRole={session.user.medicalRole as string | undefined}
       userName={session.user.name}
       patient={patient}
       appointments={appointments}

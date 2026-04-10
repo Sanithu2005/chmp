@@ -26,7 +26,9 @@ async function seed() {
   await db.delete(schema.growthRecords);
   await db.delete(schema.vaccinationRecords);
   await db.delete(schema.vaccines);
+  await db.delete(schema.parentPatients);
   await db.delete(schema.patients);
+  await db.delete(schema.doctorAvailability);
   // Clear better-auth tables before users
   await db.delete(schema.verifications);
   await db.delete(schema.sessions);
@@ -36,7 +38,14 @@ async function seed() {
   // ── 2. Create Users via better-auth (creates proper password hashes) ────────
   console.log("👤 Seeding Users via better-auth...");
 
-  type SignUpBody = { name: string; email: string; password: string; role?: string; licenseNumber?: string };
+  type SignUpBody = {
+    name: string;
+    email: string;
+    password: string;
+    role?: string;
+    licenseNumber?: string;
+    medicalRole?: string;
+  };
 
   const signUp = async (body: SignUpBody): Promise<{ user: { id: string } }> => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,12 +55,22 @@ async function seed() {
     return res as { user: { id: string } };
   };
 
-  const doctorResult = await signUp({
+  const pediatricianResult = await signUp({
     name: "Dr. Nirmala Perera",
     email: "nirmala@chmp.test",
     password: PASSWORD,
     role: "medical_professional",
+    medicalRole: "pediatrician",
     licenseNumber: "SLMC-12345",
+  });
+
+  const midwifeResult = await signUp({
+    name: "Sumitra Gunawardena",
+    email: "sumitra@chmp.test",
+    password: PASSWORD,
+    role: "medical_professional",
+    medicalRole: "midwife",
+    licenseNumber: "SLMC-67890",
   });
 
   const parent1Result = await signUp({
@@ -68,11 +87,13 @@ async function seed() {
     role: "parent",
   });
 
-  const doctorId = doctorResult.user.id;
+  const pediatricianId = pediatricianResult.user.id;
+  const midwifeId = midwifeResult.user.id;
   const parent1Id = parent1Result.user.id;
   const parent2Id = parent2Result.user.id;
 
-  console.log(`  ✓ Doctor: ${doctorId}`);
+  console.log(`  ✓ Pediatrician: ${pediatricianId}`);
+  console.log(`  ✓ Midwife: ${midwifeId}`);
   console.log(`  ✓ Parent 1: ${parent1Id}`);
   console.log(`  ✓ Parent 2: ${parent2Id}`);
 
@@ -82,14 +103,12 @@ async function seed() {
     .insert(schema.patients)
     .values([
       {
-        parentId: parent1Id,
         name: "Sanuli Silva",
         dateOfBirth: "2023-08-15",
         gender: "female",
         bloodType: "A+",
       },
       {
-        parentId: parent2Id,
         name: "Thehan Fernando",
         dateOfBirth: "2023-11-20",
         gender: "male",
@@ -100,6 +119,13 @@ async function seed() {
 
   const sanuli = patientsData[0];
   const thehan = patientsData[1];
+
+  // ── 3a. Link patients to parents ──────────────────────────────────────────
+  console.log("🔗 Linking patients to parents...");
+  await db.insert(schema.parentPatients).values([
+    { parentId: parent1Id, patientId: sanuli.id },
+    { parentId: parent2Id, patientId: thehan.id },
+  ]);
 
   // ── 4. Insert Vaccines (Sri Lanka National Immunization Schedule) ─────────
   console.log("💉 Seeding Vaccines...");
@@ -130,7 +156,7 @@ async function seed() {
     {
       patientId: sanuli.id,
       vaccineId: bcg.id,
-      administeredById: doctorId,
+      administeredById: pediatricianId,
       dueDate: "2023-08-15",
       administeredDate: "2023-08-15",
       batchNumber: "BCG-2023-001",
@@ -140,7 +166,7 @@ async function seed() {
     {
       patientId: sanuli.id,
       vaccineId: opv1.id,
-      administeredById: doctorId,
+      administeredById: pediatricianId,
       dueDate: "2023-10-10",
       administeredDate: "2023-10-12",
       batchNumber: "OPV-2023-A42",
@@ -150,7 +176,7 @@ async function seed() {
     {
       patientId: sanuli.id,
       vaccineId: penta1.id,
-      administeredById: doctorId,
+      administeredById: pediatricianId,
       dueDate: "2023-10-10",
       administeredDate: "2023-10-12",
       batchNumber: "PENTA-2023-B17",
@@ -160,7 +186,7 @@ async function seed() {
     {
       patientId: sanuli.id,
       vaccineId: opv2.id,
-      administeredById: doctorId,
+      administeredById: pediatricianId,
       dueDate: "2023-12-05",
       administeredDate: "2023-12-06",
       batchNumber: "OPV-2023-A89",
@@ -170,7 +196,7 @@ async function seed() {
     {
       patientId: sanuli.id,
       vaccineId: penta2.id,
-      administeredById: doctorId,
+      administeredById: pediatricianId,
       dueDate: "2023-12-05",
       administeredDate: "2023-12-06",
       batchNumber: "PENTA-2023-B55",
@@ -208,7 +234,7 @@ async function seed() {
   await db.insert(schema.appointments).values([
     {
       patientId: sanuli.id,
-      doctorId,
+      doctorId: pediatricianId,
       date: "2024-02-28",
       time: "10:00 AM",
       type: "Routine",
@@ -217,16 +243,16 @@ async function seed() {
     },
     {
       patientId: thehan.id,
-      doctorId,
+      doctorId: pediatricianId,
       date: "2024-03-05",
       time: "11:00 AM",
       type: "Vaccination",
-      status: "upcoming",
+      status: "pending",
       notes: "Scheduled for Pentavalent 2 and OPV 2",
     },
     {
       patientId: sanuli.id,
-      doctorId,
+      doctorId: pediatricianId,
       date: "2024-01-15",
       time: "09:30 AM",
       type: "Routine",
@@ -240,7 +266,7 @@ async function seed() {
   await db.insert(schema.prescriptions).values([
     {
       patientId: sanuli.id,
-      doctorId,
+      doctorId: pediatricianId,
       medication: "Vitamin D Drops",
       dosage: "1 drop daily",
       startDate: "2023-09-01",
@@ -249,7 +275,7 @@ async function seed() {
     },
     {
       patientId: thehan.id,
-      doctorId,
+      doctorId: pediatricianId,
       medication: "Iron Supplement",
       dosage: "As directed by pediatrician",
       startDate: "2024-02-01",
@@ -260,20 +286,31 @@ async function seed() {
   // ── 8. Insert Growth Records ───────────────────────────────────────────────
   console.log("📏 Seeding Growth Records...");
   await db.insert(schema.growthRecords).values([
-    { patientId: sanuli.id, date: "2023-08-15", weightKg: 3.2, heightCm: 50, ageInWeeks: 0, recordedById: doctorId },
-    { patientId: sanuli.id, date: "2023-10-12", weightKg: 5.1, heightCm: 57, ageInWeeks: 8, recordedById: doctorId },
-    { patientId: sanuli.id, date: "2023-12-06", weightKg: 6.3, heightCm: 62, ageInWeeks: 16, recordedById: doctorId },
-    { patientId: sanuli.id, date: "2024-01-15", weightKg: 6.8, heightCm: 64, ageInWeeks: 21, recordedById: doctorId },
-    { patientId: thehan.id, date: "2023-11-20", weightKg: 3.5, heightCm: 51, ageInWeeks: 0, recordedById: doctorId },
-    { patientId: thehan.id, date: "2024-01-20", weightKg: 5.5, heightCm: 58, ageInWeeks: 8, recordedById: doctorId },
+    { patientId: sanuli.id, date: "2023-08-15", weightKg: 3.2, heightCm: 50, ageInWeeks: 0, recordedById: pediatricianId },
+    { patientId: sanuli.id, date: "2023-10-12", weightKg: 5.1, heightCm: 57, ageInWeeks: 8, recordedById: pediatricianId },
+    { patientId: sanuli.id, date: "2023-12-06", weightKg: 6.3, heightCm: 62, ageInWeeks: 16, recordedById: pediatricianId },
+    { patientId: sanuli.id, date: "2024-01-15", weightKg: 6.8, heightCm: 64, ageInWeeks: 21, recordedById: pediatricianId },
+    { patientId: thehan.id, date: "2023-11-20", weightKg: 3.5, heightCm: 51, ageInWeeks: 0, recordedById: pediatricianId },
+    { patientId: thehan.id, date: "2024-01-20", weightKg: 5.5, heightCm: 58, ageInWeeks: 8, recordedById: pediatricianId },
+  ]);
+
+  // ── 9. Insert Doctor Availability ──────────────────────────────────────────
+  console.log("📅 Seeding Doctor Availability...");
+  await db.insert(schema.doctorAvailability).values([
+    { doctorId: pediatricianId, dayOfWeek: 1, startTime: "09:00", endTime: "12:00" },
+    { doctorId: pediatricianId, dayOfWeek: 1, startTime: "14:00", endTime: "17:00" },
+    { doctorId: pediatricianId, dayOfWeek: 3, startTime: "09:00", endTime: "12:00" },
+    { doctorId: pediatricianId, dayOfWeek: 3, startTime: "14:00", endTime: "17:00" },
+    { doctorId: pediatricianId, dayOfWeek: 5, startTime: "09:00", endTime: "12:00" },
   ]);
 
   console.log("\n✅ Seeding complete!");
   console.log("─────────────────────────────────────────");
   console.log("  Test accounts (password: chmp_dev_password)");
-  console.log("  👨‍⚕️ Doctor  : nirmala@chmp.test");
-  console.log("  👩 Parent 1: chamari@parent.test   → Sanuli");
-  console.log("  👨 Parent 2: dinesh@parent.test    → Thehan");
+  console.log("  👨‍⚕️ Pediatrician: nirmala@chmp.test");
+  console.log("  👩‍⚕️ Midwife    : sumitra@chmp.test");
+  console.log("  👩 Parent 1   : chamari@parent.test   → Sanuli");
+  console.log("  👨 Parent 2   : dinesh@parent.test    → Thehan");
   console.log("─────────────────────────────────────────");
   process.exit(0);
 }

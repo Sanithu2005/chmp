@@ -50,7 +50,7 @@ export default function LoginForm() {
       if (role === "parent") {
         router.push("/parent");
       } else {
-        router.push("/doctor");
+        router.push("/medical-professional");
       }
     } catch {
       toast.error("An unexpected error occurred. Please try again.");

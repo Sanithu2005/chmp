@@ -1,12 +1,23 @@
 // ─── User & Auth ──────────────────────────────────────────────────────────────
 
 export type UserRole = "parent" | "medical_professional";
+export type MedicalRole = "pediatrician" | "midwife";
 
 export interface User {
   id: string;
   fullName: string;
   email: string;
   role: UserRole;
+  medicalRole?: MedicalRole;
+  createdAt: Date;
+}
+
+// ─── Parent-Patient Junction ─────────────────────────────────────────────────
+
+export interface ParentPatient {
+  id: string;
+  parentId: string;
+  patientId: string;
   createdAt: Date;
 }
 
@@ -17,7 +28,6 @@ export type Gender = "male" | "female";
 
 export interface Patient {
   id: string;
-  parentId: string;
   name: string;
   dateOfBirth: Date;
   gender: Gender;
@@ -25,10 +35,21 @@ export interface Patient {
   registrationDate: Date;
 }
 
+// ─── Doctor Availability ─────────────────────────────────────────────────────
+
+export interface DoctorAvailability {
+  id: string;
+  doctorId: string;
+  dayOfWeek: number; // 0 = Sunday ... 6 = Saturday
+  startTime: string; // "HH:MM"
+  endTime: string;   // "HH:MM"
+  createdAt: Date;
+}
+
 // ─── Appointments ─────────────────────────────────────────────────────────────
 
 export type AppointmentType = "Routine" | "Vaccination" | "Follow-up";
-export type AppointmentStatus = "upcoming" | "completed" | "cancelled";
+export type AppointmentStatus = "pending" | "upcoming" | "completed" | "cancelled";
 
 export interface Appointment {
   id: string;

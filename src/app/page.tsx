@@ -10,7 +10,7 @@ export default async function RootPage() {
   }
 
   if (session.user.role === "medical_professional") {
-    redirect("/doctor");
+    redirect("/medical-professional");
   }
 
   redirect("/parent");

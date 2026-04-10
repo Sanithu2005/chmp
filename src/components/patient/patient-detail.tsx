@@ -12,8 +12,6 @@ import {
   Syringe,
   Pencil,
   Trash2,
-  LogOut,
-  Heart,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,10 +23,9 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { authClient } from "@/lib/auth-client";
-import { ThemeToggle } from "@/components/layout/theme-toggle";
+import { DashboardHeader } from "@/components/layout/dashboard-header";
 import { AddAppointmentModal } from "@/components/modals/add-appointment-modal";
 import { AddPrescriptionModal } from "@/components/modals/add-prescription-modal";
 import { AddGrowthRecordModal } from "@/components/modals/add-growth-record-modal";
@@ -38,6 +35,7 @@ import { EditPrescriptionModal } from "@/components/modals/edit-prescription-mod
 import { EditGrowthRecordModal } from "@/components/modals/edit-growth-record-modal";
 import { ConfirmDeleteModal } from "@/components/modals/confirm-delete-modal";
 import {
+  confirmAppointment,
   deleteAppointment,
   deletePrescription,
   deleteGrowthRecord,
@@ -62,17 +60,9 @@ function ageLabel(dob: string): string {
   return `${Math.floor(months / 12)} years`;
 }
 
-function initials(name: string) {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
-}
-
 type Props = {
   userRole: string;
+  userMedicalRole?: string;
   userName: string;
   patient: {
     id: string;
@@ -80,8 +70,6 @@ type Props = {
     dateOfBirth: string;
     gender: string;
     bloodType: string | null;
-    parentId: string;
-    parentName: string | null;
   };
   appointments: {
     id: string;
@@ -123,6 +111,7 @@ type Props = {
 
 export default function PatientDetail({
   userRole,
+  userMedicalRole,
   userName,
   patient,
   appointments,
@@ -150,7 +139,7 @@ export default function PatientDetail({
       else if (deleteTarget.type === "growth") await deleteGrowthRecord(deleteTarget.id);
       else if (deleteTarget.type === "patient") {
         await deletePatient(deleteTarget.id);
-        router.push(userRole === "medical_professional" ? "/doctor" : "/parent");
+        router.push(userRole === "medical_professional" ? "/medical-professional" : "/parent");
         return;
       }
       setDeleteTarget(null);
@@ -160,45 +149,22 @@ export default function PatientDetail({
     }
   };
 
-  const isDoctor = userRole === "medical_professional";
+  const isMedicalProfessional = userRole === "medical_professional";
 
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/30">
-      {/* Header */}
-      <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background px-4 shadow-sm sm:px-6">
-        <div className="flex flex-1 items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-            <Heart className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="font-semibold leading-none tracking-tight">CHMP Portal</h1>
-            <p className="text-xs text-muted-foreground mt-1">
-              {isDoctor ? "Medical Professional" : "Parent Portal"}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="hidden flex-col items-end sm:flex">
-            <span className="text-sm font-medium">{userName}</span>
-            <span className="text-xs text-muted-foreground">
-              {isDoctor ? "Pediatrician" : "Parent"}
-            </span>
-          </div>
-          <ThemeToggle />
-          <Avatar className="h-9 w-9 border">
-            <AvatarFallback>{initials(userName)}</AvatarFallback>
-          </Avatar>
-          <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout">
-            <LogOut className="h-5 w-5 text-muted-foreground" />
-          </Button>
-        </div>
-      </header>
+      <DashboardHeader
+        subtitle={isMedicalProfessional ? "Medical Professional" : "Parent Portal"}
+        userName={userName}
+        userRole={isMedicalProfessional ? "Medical Professional" : "Parent"}
+        onLogout={handleLogout}
+      />
 
       <main className="flex-1 space-y-6 p-4 sm:p-6 md:p-8 max-w-5xl mx-auto w-full">
         {/* Back + Patient Hero */}
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" asChild>
-            <Link href={isDoctor ? "/doctor" : "/parent"}>
+            <Link href={isMedicalProfessional ? "/medical-professional" : "/parent"}>
               <ArrowLeft className="mr-1 h-4 w-4" /> Back
             </Link>
           </Button>
@@ -222,7 +188,6 @@ export default function PatientDetail({
                     value={patient.gender.charAt(0).toUpperCase() + patient.gender.slice(1)}
                   />
                   <StatPill label="Blood Type" value={patient.bloodType ?? "Unknown"} />
-                  <StatPill label="Parent" value={patient.parentName ?? "—"} />
                 </div>
               </div>
               <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-primary/20">
@@ -230,7 +195,7 @@ export default function PatientDetail({
               </div>
             </div>
 
-            {isDoctor && (
+            {  isMedicalProfessional && (
               <div className="flex gap-2 mt-6">
                 <EditPatientModal patient={patient}>
                   <Button variant="outline" size="sm">
@@ -282,18 +247,8 @@ export default function PatientDetail({
                   <CardTitle>Appointments</CardTitle>
                   <CardDescription>All visits for {patient.name}.</CardDescription>
                 </div>
-                {isDoctor && (
-                  <AddAppointmentModal
-                    userRole={userRole}
-                    patients={[{ id: patient.id, name: patient.name }]}
-                    doctors={[]}
-                    defaultPatientId={patient.id}
-                    defaultDoctorId=""
-                  >
-                    <Button size="sm">
-                      <Calendar className="mr-2 h-4 w-4" /> Schedule
-                    </Button>
-                  </AddAppointmentModal>
+                {isMedicalProfessional && userMedicalRole === "pediatrician" && (
+                  <span className="text-xs text-muted-foreground">Confirm pending appointments below</span>
                 )}
               </CardHeader>
               <CardContent>
@@ -321,25 +276,17 @@ export default function PatientDetail({
                           >
                             {apt.status}
                           </Badge>
-                          {isDoctor && (
-                            <>
-                              <EditAppointmentModal appointment={apt}>
-                                <Button variant="outline" size="sm">
-                                  <Pencil className="h-3.5 w-3.5" />
-                                </Button>
-                              </EditAppointmentModal>
-                              <ConfirmDeleteModal
-                                title="Delete Appointment"
-                                description="Remove this appointment permanently?"
-                                onConfirm={() =>
-                                  setDeleteTarget({ type: "appointment", id: apt.id, name: "" })
-                                }
-                              >
-                                <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10">
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </ConfirmDeleteModal>
-                            </>
+                          {isMedicalProfessional && userMedicalRole === "pediatrician" && apt.status === "pending" && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={async () => {
+                                await confirmAppointment(apt.id);
+                                router.refresh();
+                              }}
+                            >
+                              Confirm
+                            </Button>
                           )}
                         </div>
                       </div>
@@ -358,7 +305,7 @@ export default function PatientDetail({
                   <CardTitle>Prescriptions</CardTitle>
                   <CardDescription>Medications for {patient.name}.</CardDescription>
                 </div>
-                {isDoctor && (
+                {  isMedicalProfessional && (
                   <AddPrescriptionModal patients={[{ id: patient.id, name: patient.name }]}>
                     <Button size="sm">
                       <Pill className="mr-2 h-4 w-4" /> Prescribe
@@ -397,7 +344,7 @@ export default function PatientDetail({
                           >
                             {rx.status}
                           </Badge>
-                          {isDoctor && (
+                          {  isMedicalProfessional && (
                             <>
                               <EditPrescriptionModal prescription={rx}>
                                 <Button variant="outline" size="sm">
@@ -434,7 +381,7 @@ export default function PatientDetail({
                   <CardTitle>Growth Charts</CardTitle>
                   <CardDescription>Weight and height over time.</CardDescription>
                 </div>
-                {isDoctor && (
+                {  isMedicalProfessional && (
                   <AddGrowthRecordModal patients={[{ id: patient.id, name: patient.name }]}>
                     <Button size="sm">
                       <TrendingUp className="mr-2 h-4 w-4" /> Record
@@ -476,7 +423,7 @@ export default function PatientDetail({
                           <div className="font-medium">{r.weightKg} kg</div>
                           <div className="font-medium">{r.heightCm} cm</div>
                           <div className="flex justify-end gap-2">
-                            {isDoctor && (
+                            {  isMedicalProfessional && (
                               <>
                                 <EditGrowthRecordModal record={r}>
                                   <Button variant="outline" size="sm">

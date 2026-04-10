@@ -2,10 +2,11 @@ import { pgTable, text, timestamp, date, integer, uuid, boolean, pgEnum, doubleP
 
 // --- Enums ---
 export const userRoleEnum = pgEnum("user_role", ["parent", "medical_professional"]);
+export const medicalRoleEnum = pgEnum("medical_role", ["pediatrician", "midwife"]);
 export const genderEnum = pgEnum("gender", ["male", "female"]);
 export const bloodTypeEnum = pgEnum("blood_type", ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Unknown"]);
 export const appointmentTypeEnum = pgEnum("appointment_type", ["Routine", "Vaccination", "Follow-up"]);
-export const appointmentStatusEnum = pgEnum("appointment_status", ["upcoming", "completed", "cancelled"]);
+export const appointmentStatusEnum = pgEnum("appointment_status", ["pending", "upcoming", "completed", "cancelled"]);
 export const prescriptionStatusEnum = pgEnum("prescription_status", ["active", "pending", "completed", "cancelled"]);
 export const vaccinationStatusEnum = pgEnum("vaccination_status", ["upcoming", "due_this_week", "overdue", "administered"]);
 
@@ -20,6 +21,7 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").notNull(),
   updatedAt: timestamp("updated_at").notNull(),
   role: userRoleEnum("role").notNull(),
+  medicalRole: medicalRoleEnum("medical_role"), // Only for medical professionals
   licenseNumber: text("license_number"), // Only for medical professionals
 });
 
@@ -61,12 +63,19 @@ export const verifications = pgTable("verification", {
 
 export const patients = pgTable("patients", {
   id: uuid("id").primaryKey().defaultRandom(),
-  parentId: text("parent_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   dateOfBirth: date("date_of_birth").notNull(),
   gender: genderEnum("gender").notNull(),
   bloodType: bloodTypeEnum("blood_type").default("Unknown"),
   registrationDate: timestamp("registration_date").notNull().defaultNow(),
+});
+
+// Many-to-many: parents <-> patients
+export const parentPatients = pgTable("parent_patients", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  parentId: text("parent_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  patientId: uuid("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const vaccines = pgTable("vaccines", {
@@ -105,7 +114,8 @@ export const appointments = pgTable("appointments", {
   date: date("date").notNull(),
   time: text("time").notNull(), // e.g. "10:00 AM"
   type: appointmentTypeEnum("type").notNull(),
-  status: appointmentStatusEnum("status").notNull().default("upcoming"),
+  status: appointmentStatusEnum("status").notNull().default("pending"),
+  confirmedById: text("confirmed_by_id").references(() => users.id),
   notes: text("notes"),
 });
 
@@ -119,4 +129,14 @@ export const prescriptions = pgTable("prescriptions", {
   endDate: date("end_date"),
   status: prescriptionStatusEnum("status").notNull().default("active"),
   notes: text("notes"),
+});
+
+// Pediatrician availability: recurring weekly schedule
+export const doctorAvailability = pgTable("doctor_availability", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  doctorId: text("doctor_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  dayOfWeek: integer("day_of_week").notNull(), // 0 = Sunday, 1 = Monday, ... 6 = Saturday
+  startTime: text("start_time").notNull(), // "HH:MM" 24-hour format
+  endTime: text("end_time").notNull(), // "HH:MM" 24-hour format
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });

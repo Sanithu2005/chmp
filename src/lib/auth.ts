@@ -19,6 +19,11 @@ export const auth = betterAuth({
         // input: true allows this field to be set during signUp
         input: true,
       },
+      medicalRole: {
+        type: "string",
+        required: false,
+        input: true,
+      },
       licenseNumber: {
         type: "string",
         required: false,

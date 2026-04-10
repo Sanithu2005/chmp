@@ -35,12 +35,12 @@ export async function proxy(request: NextRequest) {
   const role = data.user.role;
 
   // Role guards
-  if (pathname.startsWith("/doctor") && role !== "medical_professional") {
+  if (pathname.startsWith("/medical-professional") && role !== "medical_professional") {
     return NextResponse.redirect(new URL("/parent", request.url));
   }
 
   if (pathname.startsWith("/parent") && role !== "parent") {
-    return NextResponse.redirect(new URL("/doctor", request.url));
+    return NextResponse.redirect(new URL("/medical-professional", request.url));
   }
 
   return NextResponse.next();

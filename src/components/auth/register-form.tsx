@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Loader2, Users, Stethoscope, Eye, EyeOff } from "lucide-react";
+import { Loader2, Users, Stethoscope, Baby, HeartPulse, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +24,7 @@ const registerSchema = z
     role: z.enum(["parent", "medical_professional"], {
       message: "Please select your role",
     }),
+    medicalRole: z.enum(["pediatrician", "midwife"]).optional(),
     licenseNumber: z.string().optional(),
   })
   .superRefine((data, ctx) => {
@@ -34,12 +35,21 @@ const registerSchema = z
         path: ["confirmPassword"],
       });
     }
-    if (data.role === "medical_professional" && (!data.licenseNumber || data.licenseNumber.trim() === "")) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "License number is required for medical professionals",
-        path: ["licenseNumber"],
-      });
+    if (data.role === "medical_professional") {
+      if (!data.licenseNumber || data.licenseNumber.trim() === "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "License number is required for medical professionals",
+          path: ["licenseNumber"],
+        });
+      }
+      if (!data.medicalRole) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Please select a medical sub-role",
+          path: ["medicalRole"],
+        });
+      }
     }
   });
 
@@ -85,6 +95,7 @@ export default function RegisterForm() {
         name: data.fullName,
         role: data.role,
         licenseNumber: data.licenseNumber ?? "",
+        ...(data.medicalRole ? { medicalRole: data.medicalRole } : {}),
       });
 
       if (error) {
@@ -97,7 +108,7 @@ export default function RegisterForm() {
       if (data.role === "parent") {
         router.push("/parent");
       } else {
-        router.push("/doctor");
+        router.push("/medical-professional");
       }
     } catch {
       toast.error("An unexpected error occurred. Please try again.");
@@ -207,22 +218,87 @@ export default function RegisterForm() {
 
         {/* License Number (Conditional) */}
         {selectedRole === "medical_professional" && (
-          <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
-            <Label htmlFor="register-license">Medical License Number</Label>
-            <Input
-              id="register-license"
-              type="text"
-              placeholder="SLMC-12345"
-              {...register("licenseNumber")}
-              style={{
-                borderColor: errors.licenseNumber ? "var(--color-destructive)" : undefined,
-              }}
-            />
-            {errors.licenseNumber && (
-              <p className="text-xs" style={{ color: "var(--color-destructive)" }}>
-                {errors.licenseNumber.message}
-              </p>
-            )}
+          <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="space-y-1.5">
+              <Label htmlFor="register-license">Medical License Number</Label>
+              <Input
+                id="register-license"
+                type="text"
+                placeholder="SLMC-12345"
+                {...register("licenseNumber")}
+                style={{
+                  borderColor: errors.licenseNumber ? "var(--color-destructive)" : undefined,
+                }}
+              />
+              {errors.licenseNumber && (
+                <p className="text-xs" style={{ color: "var(--color-destructive)" }}>
+                  {errors.licenseNumber.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Medical Sub-Role</Label>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  {
+                    value: "pediatrician" as const,
+                    label: "Pediatrician",
+                    description: "Doctor for children",
+                    icon: <Baby className="h-5 w-5" />,
+                  },
+                  {
+                    value: "midwife" as const,
+                    label: "Midwife",
+                    description: "Maternal & child care",
+                    icon: <HeartPulse className="h-5 w-5" />,
+                  },
+                ].map((sub) => (
+                  <button
+                    key={sub.value}
+                    type="button"
+                    onClick={() => setValue("medicalRole", sub.value, { shouldValidate: true })}
+                    className={cn(
+                      "flex flex-col items-center gap-2 rounded-xl border-2 p-4 text-center transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                    )}
+                    style={{
+                      borderColor:
+                        watch("medicalRole") === sub.value
+                          ? "var(--color-primary)"
+                          : "var(--color-border)",
+                      background:
+                        watch("medicalRole") === sub.value
+                          ? "color-mix(in srgb, var(--color-primary) 10%, transparent)"
+                          : "var(--color-card)",
+                      color:
+                        watch("medicalRole") === sub.value
+                          ? "var(--color-primary)"
+                          : "var(--color-muted-foreground)",
+                    }}
+                  >
+                    <span
+                      className="flex h-9 w-9 items-center justify-center rounded-lg"
+                      style={{
+                        background:
+                          watch("medicalRole") === sub.value
+                            ? "color-mix(in srgb, var(--color-primary) 15%, transparent)"
+                            : "color-mix(in srgb, var(--color-muted-foreground) 10%, transparent)",
+                      }}
+                    >
+                      {sub.icon}
+                    </span>
+                    <span className="text-sm font-semibold" style={{ color: "var(--color-foreground)" }}>
+                      {sub.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              {errors.medicalRole && (
+                <p className="text-xs" style={{ color: "var(--color-destructive)" }}>
+                  {errors.medicalRole.message}
+                </p>
+              )}
+            </div>
           </div>
         )}
 
