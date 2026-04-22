@@ -14,6 +14,7 @@ import {
   ArrowRight,
   ChevronRight,
 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -24,8 +25,10 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { authClient } from "@/lib/auth-client";
+import { ageLabel, computeVaccinationStatus } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
+import { Footer } from "@/components/layout/footer";
 import { AddPatientModal } from "@/components/modals/add-patient-modal";
 import { AddAppointmentModal } from "@/components/modals/add-appointment-modal";
 
@@ -36,6 +39,7 @@ type Child = {
   dateOfBirth: string;
   gender: string;
   bloodType: string | null;
+  image: string | null;
 };
 
 type Appointment = {
@@ -68,17 +72,12 @@ type GrowthRecord = {
 
 type VaccinationRecord = {
   id: string;
-  status: string;
   dueDate: string;
   administeredDate: string | null;
   batchNumber: string | null;
   clinic: string | null;
   vaccineName: string;
-  vaccineDescription: string | null;
-  recommendedAgeWeeks: number;
 };
-
-type DoctorRef = { id: string; name: string; email: string };
 
 type Props = {
   user: { name: string; email: string };
@@ -88,19 +87,12 @@ type Props = {
   prescriptions: Prescription[];
   growthRecords: GrowthRecord[];
   vaccinations: VaccinationRecord[];
-  doctors: DoctorRef[];
 };
 
-function ageLabel(dob: string): string {
-  const birth = new Date(dob);
-  const now = new Date();
-  const weeks = Math.floor(
-    (now.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24 * 7)
-  );
-  if (weeks < 4) return `${weeks} week${weeks !== 1 ? "s" : ""}`;
-  const months = Math.floor(weeks / 4.33);
-  if (months < 24) return `${months} month${months !== 1 ? "s" : ""}`;
-  return `${Math.floor(months / 12)} years`;
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 function isWithinDays(dateStr: string, days: number): boolean {
@@ -130,7 +122,6 @@ export default function ParentDashboard({
   prescriptions,
   growthRecords,
   vaccinations,
-  doctors,
 }: Props) {
   const router = useRouter();
 
@@ -144,10 +135,14 @@ export default function ParentDashboard({
     (a) => a.status === "upcoming" && isWithinDays(a.date, 7)
   );
   const pendingAppointments = appointments.filter((a) => a.status === "pending");
-  const dueVaccines = vaccinations.filter(
+  const vaccinatedWithStatus = vaccinations.map((v) => ({
+    ...v,
+    status: computeVaccinationStatus(v.dueDate, v.administeredDate),
+  }));
+  const dueVaccines = vaccinatedWithStatus.filter(
     (v) => v.status === "due_this_week" || v.status === "overdue"
   );
-  const administeredCount = vaccinations.filter((v) => v.status === "administered").length;
+  const administeredCount = vaccinatedWithStatus.filter((v) => v.status === "administered").length;
   const nextAppointment = appointments
     .filter((a) => a.status === "upcoming")
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
@@ -165,7 +160,7 @@ export default function ParentDashboard({
         onLogout={handleLogout}
       />
 
-      <main className="flex-1 space-y-6 p-4 sm:p-6 md:p-8 max-w-5xl mx-auto w-full">
+      <main className="flex-1 space-y-6 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full">
         {/* No children */}
         {!primaryChild ? (
           <Card className="flex flex-col items-center justify-center py-20 text-center">
@@ -185,74 +180,80 @@ export default function ParentDashboard({
         ) : (
           <>
             {/* ── Child Hero ─────────────────────────────────────────────── */}
-            <div className="overflow-hidden rounded-2xl border bg-card shadow-sm">
-              <div
-                className="p-6 sm:p-8"
-                style={{
-                  background:
-                    "linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 10%, transparent), transparent)",
-                }}
-              >
-                <div className="flex flex-col sm:flex-row justify-between items-start gap-6">
-                  <div className="flex-1 min-w-0">
-                    {/* Child selector */}
-                    {children.length > 1 && (
-                      <div className="mb-3">
-                        <select
-                          value={primaryChild.id}
-                          onChange={(e) =>
-                            router.push(`/parent?child=${e.target.value}`)
-                          }
-                          className="h-8 rounded-md border border-input bg-background px-2 pr-8 text-sm font-medium shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        >
-                          {children.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </select>
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  {/* Left: avatar(s) + identity */}
+                  <div className="flex items-center gap-4 min-w-0">
+                    {children.length > 1 ? (
+                      <div className="flex items-center gap-2">
+                        {children.map((c) => {
+                          const active = c.id === primaryChild.id;
+                          return (
+                            <button
+                              key={c.id}
+                              onClick={() => router.push(`/parent?child=${c.id}`)}
+                              className={`shrink-0 rounded-full transition-colors overflow-hidden ${
+                                active
+                                  ? "ring-2 ring-primary ring-offset-2"
+                                  : "opacity-70 hover:opacity-100"
+                              }`}
+                              title={c.name}
+                              aria-label={`Switch to ${c.name}`}
+                            >
+                              <Avatar className="h-10 w-10">
+                                <AvatarImage src={c.image ?? undefined} alt={c.name} />
+                                <AvatarFallback className="text-xs font-bold bg-primary text-primary-foreground">
+                                  {getInitials(c.name)}
+                                </AvatarFallback>
+                              </Avatar>
+                            </button>
+                          );
+                        })}
                       </div>
+                    ) : (
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={primaryChild.image ?? undefined} alt={primaryChild.name} />
+                        <AvatarFallback className="text-xs font-bold bg-primary text-primary-foreground">
+                          {getInitials(primaryChild.name)}
+                        </AvatarFallback>
+                      </Avatar>
                     )}
-                    <h2 className="text-3xl font-bold tracking-tight">
-                      <Link
-                        href={`/patients/${primaryChild.id}`}
-                        className="hover:underline hover:text-primary transition-colors"
-                      >
-                        {primaryChild.name}
-                      </Link>
-                    </h2>
-                    <div className="flex flex-wrap gap-3 mt-4">
-                      <StatPill label="Age" value={ageLabel(primaryChild.dateOfBirth)} />
-                      <StatPill
-                        label="Gender"
-                        value={
-                          primaryChild.gender.charAt(0).toUpperCase() +
-                          primaryChild.gender.slice(1)
-                        }
-                      />
-                      <StatPill label="Blood Type" value={primaryChild.bloodType ?? "Unknown"} />
+
+                    <div className="min-w-0">
+                      <h2 className="text-xl font-bold tracking-tight truncate">
+                        <Link
+                          href={`/patients/${primaryChild.id}`}
+                          className="hover:underline hover:text-primary transition-colors"
+                        >
+                          {primaryChild.name}
+                        </Link>
+                      </h2>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {ageLabel(primaryChild.dateOfBirth)} ·{" "}
+                        {primaryChild.gender.charAt(0).toUpperCase() +
+                          primaryChild.gender.slice(1)}{" "}
+                        · {primaryChild.bloodType ?? "Unknown"}
+                      </p>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-3">
-                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                      <Baby className="h-10 w-10 text-primary" />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Button variant="ghost" size="sm" asChild>
-                        <Link href={`/patients/${primaryChild.id}`}>
-                          Full history <ArrowRight className="ml-1 h-3.5 w-3.5" />
-                        </Link>
+
+                  {/* Right: actions */}
+                  <div className="flex items-center gap-2 self-stretch sm:self-auto ml-auto">
+                    <Button variant="ghost" size="sm" asChild>
+                      <Link href={`/patients/${primaryChild.id}`}>
+                        Full history <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                      </Link>
+                    </Button>
+                    <AddPatientModal userRole="parent">
+                      <Button variant="outline" size="sm">
+                        <Plus className="mr-1 h-3.5 w-3.5" /> Add Child
                       </Button>
-                      <AddPatientModal userRole="parent">
-                        <Button variant="outline" size="sm">
-                          <Plus className="mr-1 h-3.5 w-3.5" /> Add Child
-                        </Button>
-                      </AddPatientModal>
-                    </div>
+                    </AddPatientModal>
                   </div>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
             {/* ── Quick Stats ────────────────────────────────────────────── */}
             <div className="grid gap-4 grid-cols-3">
@@ -281,7 +282,6 @@ export default function ParentDashboard({
                     icon={<Clock className="h-5 w-5 text-amber-500" />}
                     title="Appointment awaiting confirmation"
                     description={`${pendingAppointments.length} appointment${pendingAppointments.length > 1 ? "s" : ""} with ${pendingAppointments[0].doctorName} pending pediatrician confirmation.`}
-                    tone="amber"
                   />
                 )}
                 {upcomingSoon.length > 0 && (
@@ -289,7 +289,6 @@ export default function ParentDashboard({
                     icon={<Calendar className="h-5 w-5 text-sky-500" />}
                     title="Visit coming up"
                     description={`${upcomingSoon.length} appointment${upcomingSoon.length > 1 ? "s" : ""} in the next 7 days.`}
-                    tone="sky"
                   />
                 )}
                 {dueVaccines.length > 0 && (
@@ -297,7 +296,6 @@ export default function ParentDashboard({
                     icon={<AlertTriangle className="h-5 w-5 text-rose-500" />}
                     title={`${dueVaccines.length} vaccine${dueVaccines.length > 1 ? "s" : ""} due`}
                     description={`${dueVaccines.map((v) => v.vaccineName).join(", ")} — schedule a visit.`}
-                    tone="rose"
                   />
                 )}
               </div>
@@ -316,7 +314,6 @@ export default function ParentDashboard({
                     <AddAppointmentModal
                       userRole="parent"
                       patients={children}
-                      doctors={doctors}
                       defaultPatientId={primaryChild?.id}
                     >
                       <Button variant="ghost" size="sm" className="h-8 gap-1">
@@ -378,15 +375,11 @@ export default function ParentDashboard({
                     </div>
                   </div>
                   {dueVaccines.length > 0 && (
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900/30 p-3">
-                      <p className="text-sm font-medium text-amber-800 dark:text-amber-300 flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4" />
-                        {dueVaccines.length} vaccine{dueVaccines.length > 1 ? "s" : ""} due
-                      </p>
-                      <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-                        {dueVaccines.map((v) => v.vaccineName).join(", ")}
-                      </p>
-                    </div>
+                    <AlertCard
+                      icon={<AlertTriangle className="h-5 w-5 text-rose-500" />}
+                      title={`${dueVaccines.length} vaccine${dueVaccines.length > 1 ? "s" : ""} due`}
+                      description={`${dueVaccines.map((v) => v.vaccineName).join(", ")} — schedule a visit.`}
+                    />
                   )}
                   <Button variant="ghost" size="sm" className="w-full justify-between" asChild>
                     <Link href={`/patients/${primaryChild.id}?tab=vaccinations`}>
@@ -482,20 +475,12 @@ export default function ParentDashboard({
           </>
         )}
       </main>
+      <Footer />
     </div>
   );
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-function StatPill({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-lg bg-background/60 px-3 py-2 backdrop-blur-sm">
-      <p className="text-[10px] text-muted-foreground">{label}</p>
-      <p className="text-sm font-semibold">{value}</p>
-    </div>
-  );
-}
 
 function MiniStat({
   icon,
@@ -521,25 +506,17 @@ function AlertCard({
   icon,
   title,
   description,
-  tone,
 }: {
   icon: React.ReactNode;
   title: string;
   description: string;
-  tone: "amber" | "sky" | "rose";
 }) {
-  const toneClasses = {
-    amber: "border-amber-200 bg-amber-50 text-amber-800 dark:bg-amber-950/20 dark:border-amber-900/30 dark:text-amber-300",
-    sky: "border-sky-200 bg-sky-50 text-sky-800 dark:bg-sky-950/20 dark:border-sky-900/30 dark:text-sky-300",
-    rose: "border-rose-200 bg-rose-50 text-rose-800 dark:bg-rose-950/20 dark:border-rose-900/30 dark:text-rose-300",
-  };
-
   return (
-    <div className={`flex items-start gap-3 rounded-xl border p-4 ${toneClasses[tone]}`}>
+    <div className="flex items-start gap-3 rounded-xl border bg-card p-4 shadow-sm">
       <div className="mt-0.5 shrink-0">{icon}</div>
       <div>
-        <p className="font-semibold text-sm">{title}</p>
-        <p className="text-sm opacity-90 mt-0.5">{description}</p>
+        <p className="font-semibold text-sm text-foreground">{title}</p>
+        <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
       </div>
     </div>
   );

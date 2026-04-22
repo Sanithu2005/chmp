@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,26 +20,39 @@ type Doctor = { id: string; name: string; email: string };
 const selectClass =
   "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
+function useDebounce(value: string, delay: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+  useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
+
 export function AddAppointmentModal({
   children,
   userRole,
   patients,
-  doctors,
   defaultPatientId,
 }: {
   children: React.ReactNode;
   userRole: string;
   patients: Patient[];
-  doctors: Doctor[];
   defaultPatientId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
-  const [selectedDoctor, setSelectedDoctor] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedQuery = useDebounce(searchQuery, 300);
+  const [searchResults, setSearchResults] = useState<Doctor[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState("");
+  const searchRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   async function fetchSlots(doctorId: string, date: string) {
@@ -57,12 +70,44 @@ export function AddAppointmentModal({
     }
   }
 
-  function handleDoctorChange(doctorId: string) {
-    setSelectedDoctor(doctorId);
+  useEffect(() => {
+    if (debouncedQuery.trim().length === 0) {
+      setSearchResults([]);
+      setShowDropdown(false);
+      return;
+    }
+    setSearching(true);
+    fetch(`/api/pediatricians/search?q=${encodeURIComponent(debouncedQuery)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setSearchResults(data.doctors ?? []);
+        setShowDropdown(true);
+      })
+      .catch(() => {
+        setSearchResults([]);
+        setShowDropdown(false);
+      })
+      .finally(() => setSearching(false));
+  }, [debouncedQuery]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function handleSelectDoctor(doctor: Doctor) {
+    setSelectedDoctor(doctor);
+    setSearchQuery(doctor.name);
+    setShowDropdown(false);
     setAvailableSlots([]);
     setSelectedSlot("");
-    if (doctorId && selectedDate) {
-      fetchSlots(doctorId, selectedDate);
+    if (selectedDate) {
+      fetchSlots(doctor.id, selectedDate);
     }
   }
 
@@ -71,7 +116,7 @@ export function AddAppointmentModal({
     setAvailableSlots([]);
     setSelectedSlot("");
     if (selectedDoctor && date) {
-      fetchSlots(selectedDoctor, date);
+      fetchSlots(selectedDoctor.id, date);
     }
   }
 
@@ -79,8 +124,10 @@ export function AddAppointmentModal({
     e.preventDefault();
     setPending(true);
     const formData = new FormData(e.currentTarget);
-    // Inject the selected slot as time
     formData.set("time", selectedSlot);
+    if (selectedDoctor) {
+      formData.set("doctorId", selectedDoctor.id);
+    }
     try {
       await createAppointment(formData);
       setOpen(false);
@@ -118,23 +165,54 @@ export function AddAppointmentModal({
             </select>
           </div>
 
-          <div>
-            <Label htmlFor="doctorId">Pediatrician</Label>
-            <select
-              id="doctorId"
-              name="doctorId"
+          <div ref={searchRef} className="relative">
+            <Label htmlFor="doctorSearch">Pediatrician</Label>
+            <input
+              id="doctorSearch"
+              type="text"
+              placeholder="Search pediatricians by name..."
               required
               className={selectClass}
-              value={selectedDoctor}
-              onChange={(e) => handleDoctorChange(e.target.value)}
-            >
-              <option value="">Select pediatrician</option>
-              {doctors.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                if (selectedDoctor && e.target.value !== selectedDoctor.name) {
+                  setSelectedDoctor(null);
+                }
+                setAvailableSlots([]);
+                setSelectedSlot("");
+              }}
+              onFocus={() => {
+                if (searchResults.length > 0) setShowDropdown(true);
+              }}
+              autoComplete="off"
+            />
+            {showDropdown && (
+              <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md max-h-60 overflow-auto">
+                {searching ? (
+                  <div className="px-3 py-2 text-sm text-muted-foreground">
+                    Searching...
+                  </div>
+                ) : searchResults.length === 0 ? (
+                  <div className="px-3 py-2 text-sm text-muted-foreground">
+                    No pediatricians found.
+                  </div>
+                ) : (
+                  searchResults.map((doctor) => (
+                    <button
+                      key={doctor.id}
+                      type="button"
+                      onClick={() => handleSelectDoctor(doctor)}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground transition-colors"
+                    >
+                      <div className="font-medium">{doctor.name}</div>
+                      <div className="text-xs text-muted-foreground">{doctor.email}</div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+            <input type="hidden" name="doctorId" value={selectedDoctor?.id ?? ""} />
           </div>
 
           <div>
@@ -201,7 +279,7 @@ export function AddAppointmentModal({
             />
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={pending || !selectedSlot}>
+            <Button type="submit" disabled={pending || !selectedSlot || !selectedDoctor}>
               {pending ? "Booking..." : "Book Appointment"}
             </Button>
           </DialogFooter>

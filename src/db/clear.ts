@@ -20,7 +20,8 @@ async function clear() {
   await db.delete(schema.appointments);
   await db.delete(schema.growthRecords);
   await db.delete(schema.vaccinationRecords);
-  await db.delete(schema.vaccines);
+  await db.delete(schema.parentPatients);
+  await db.delete(schema.doctorAvailability);
   await db.delete(schema.patients);
   await db.delete(schema.verifications);
   await db.delete(schema.sessions);

@@ -6,11 +6,10 @@ import {
   growthRecords,
   users,
   vaccinationRecords,
-  vaccines,
   parentPatients,
   doctorAvailability,
 } from "@/db/schema";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, ilike } from "drizzle-orm";
 
 // ─── Medical Professional queries ────────────────────────────────────────────
 
@@ -118,18 +117,35 @@ export async function getDoctorPendingAppointments(doctorId: string) {
     .orderBy(appointments.date, appointments.time);
 }
 
-export async function getDoctorPatients(doctorId: string) {
-  return db
-    .selectDistinct({
-      id: patients.id,
-      name: patients.name,
-      dateOfBirth: patients.dateOfBirth,
-      gender: patients.gender,
-      bloodType: patients.bloodType,
-    })
-    .from(patients)
-    .innerJoin(appointments, eq(appointments.patientId, patients.id))
-    .where(eq(appointments.doctorId, doctorId));
+export async function getDoctorPatients(doctorId: string, medicalRole: "pediatrician" | "midwife") {
+  if (medicalRole === "pediatrician") {
+    return db
+      .selectDistinct({
+        id: patients.id,
+        name: patients.name,
+        dateOfBirth: patients.dateOfBirth,
+        gender: patients.gender,
+        bloodType: patients.bloodType,
+        image: patients.image,
+      })
+      .from(patients)
+      .innerJoin(appointments, eq(appointments.patientId, patients.id))
+      .where(eq(appointments.doctorId, doctorId));
+  }
+
+  // Midwife: patients they've added prescriptions, growth records, or vaccinations for
+  const cols = { id: patients.id, name: patients.name, dateOfBirth: patients.dateOfBirth, gender: patients.gender, bloodType: patients.bloodType, image: patients.image };
+  const [prescriptionPatients, growthPatients, vaccinePatients] = await Promise.all([
+    db.selectDistinct(cols).from(patients).innerJoin(prescriptions, eq(prescriptions.patientId, patients.id)).where(eq(prescriptions.doctorId, doctorId)),
+    db.selectDistinct(cols).from(patients).innerJoin(growthRecords, eq(growthRecords.patientId, patients.id)).where(eq(growthRecords.recordedById, doctorId)),
+    db.selectDistinct(cols).from(patients).innerJoin(vaccinationRecords, eq(vaccinationRecords.patientId, patients.id)).where(eq(vaccinationRecords.administeredById, doctorId)),
+  ]);
+
+  const map = new Map<string, typeof prescriptionPatients[0]>();
+  [...prescriptionPatients, ...growthPatients, ...vaccinePatients].forEach((p) => {
+    if (!map.has(p.id)) map.set(p.id, p);
+  });
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function getDoctorPrescriptions(doctorId: string) {
@@ -233,6 +249,7 @@ export async function getParentChildren(parentId: string) {
       dateOfBirth: patients.dateOfBirth,
       gender: patients.gender,
       bloodType: patients.bloodType,
+      image: patients.image,
     })
     .from(patients)
     .innerJoin(parentPatients, eq(parentPatients.patientId, patients.id))
@@ -292,24 +309,15 @@ export async function getChildVaccinations(childId: string) {
   return db
     .select({
       id: vaccinationRecords.id,
-      status: vaccinationRecords.status,
       dueDate: vaccinationRecords.dueDate,
       administeredDate: vaccinationRecords.administeredDate,
       batchNumber: vaccinationRecords.batchNumber,
       clinic: vaccinationRecords.clinic,
-      vaccineName: vaccines.name,
-      vaccineDescription: vaccines.description,
-      recommendedAgeWeeks: vaccines.recommendedAgeWeeks,
+      vaccineName: vaccinationRecords.vaccineName,
     })
     .from(vaccinationRecords)
-    .innerJoin(vaccines, eq(vaccinationRecords.vaccineId, vaccines.id))
     .where(eq(vaccinationRecords.patientId, childId))
-    .orderBy(vaccines.recommendedAgeWeeks);
-}
-
-// Also fetch all vaccines so we can show which ones haven't been scheduled yet
-export async function getAllVaccines() {
-  return db.select().from(vaccines).orderBy(vaccines.recommendedAgeWeeks);
+    .orderBy(vaccinationRecords.dueDate);
 }
 
 // ─── Reference data for modals ───────────────────────────────────────────────
@@ -322,9 +330,27 @@ export async function getAllPatients() {
       dateOfBirth: patients.dateOfBirth,
       gender: patients.gender,
       bloodType: patients.bloodType,
+      image: patients.image,
     })
     .from(patients)
     .orderBy(patients.name);
+}
+
+export async function searchPatients(query: string) {
+  const q = `%${query}%`;
+  return db
+    .select({
+      id: patients.id,
+      name: patients.name,
+      dateOfBirth: patients.dateOfBirth,
+      gender: patients.gender,
+      bloodType: patients.bloodType,
+      image: patients.image,
+    })
+    .from(patients)
+    .where(ilike(patients.name, q))
+    .orderBy(patients.name)
+    .limit(10);
 }
 
 export async function getAllParents() {
@@ -356,6 +382,22 @@ export async function getAllPediatricians() {
     .orderBy(users.name);
 }
 
+export async function searchPediatricians(query: string) {
+  const q = `%${query}%`;
+  return db
+    .select({ id: users.id, name: users.name, email: users.email })
+    .from(users)
+    .where(
+      and(
+        eq(users.role, "medical_professional"),
+        eq(users.medicalRole, "pediatrician"),
+        ilike(users.name, q),
+      ),
+    )
+    .orderBy(users.name)
+    .limit(10);
+}
+
 // ─── Single-record queries for editing ───────────────────────────────────────
 
 export async function getPatientById(id: string) {
@@ -366,6 +408,7 @@ export async function getPatientById(id: string) {
       dateOfBirth: patients.dateOfBirth,
       gender: patients.gender,
       bloodType: patients.bloodType,
+      image: patients.image,
     })
     .from(patients)
     .where(eq(patients.id, id));

@@ -1,56 +1,68 @@
 import { CheckCircle2, Clock, AlertCircle, Calendar } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { computeVaccinationStatus, type ComputedVaccinationStatus } from "@/lib/utils";
 
 type VaccinationRecord = {
   id: string;
-  status: string;
   dueDate: string;
   administeredDate: string | null;
   batchNumber: string | null;
   clinic: string | null;
   vaccineName: string;
-  vaccineDescription: string | null;
-  recommendedAgeWeeks: number;
 };
 
 type Props = {
   vaccinations: VaccinationRecord[];
+  onAdminister?: (id: string) => void;
 };
 
-const statusConfig = {
+const statusConfig: Record<
+  ComputedVaccinationStatus,
+  {
+    icon: typeof CheckCircle2;
+    label: string;
+    variant: "success" | "info" | "warning" | "destructive";
+    color: string;
+    bg: string;
+  }
+> = {
   administered: {
     icon: CheckCircle2,
     label: "Administered",
-    variant: "success" as const,
+    variant: "success",
     color: "text-emerald-500",
     bg: "bg-emerald-500/10",
   },
   upcoming: {
     icon: Clock,
     label: "Upcoming",
-    variant: "info" as const,
+    variant: "info",
     color: "text-sky-500",
     bg: "bg-sky-500/10",
   },
   due_this_week: {
     icon: Calendar,
     label: "Due This Week",
-    variant: "warning" as const,
+    variant: "warning",
     color: "text-amber-500",
     bg: "bg-amber-500/10",
   },
   overdue: {
     icon: AlertCircle,
     label: "Overdue",
-    variant: "destructive" as const,
+    variant: "destructive",
     color: "text-red-500",
     bg: "bg-red-500/10",
   },
 };
 
-export default function VaccinationSchedule({ vaccinations }: Props) {
-  const administered = vaccinations.filter((v) => v.status === "administered");
-  const pending = vaccinations.filter((v) => v.status !== "administered");
+export default function VaccinationSchedule({ vaccinations, onAdminister }: Props) {
+  const withStatus = vaccinations.map((v) => ({
+    ...v,
+    status: computeVaccinationStatus(v.dueDate, v.administeredDate),
+  }));
+
+  const administered = withStatus.filter((v) => v.status === "administered");
 
   return (
     <div className="space-y-6">
@@ -76,9 +88,10 @@ export default function VaccinationSchedule({ vaccinations }: Props) {
 
       {/* Vaccination list */}
       <div className="space-y-3">
-        {vaccinations.map((v) => {
-          const config = statusConfig[v.status as keyof typeof statusConfig] ?? statusConfig.upcoming;
+        {withStatus.map((v) => {
+          const config = statusConfig[v.status];
           const Icon = config.icon;
+          const isPending = v.status !== "administered";
           return (
             <div
               key={v.id}
@@ -91,11 +104,18 @@ export default function VaccinationSchedule({ vaccinations }: Props) {
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <p className="font-semibold text-sm">{v.vaccineName}</p>
-                    {v.vaccineDescription && (
-                      <p className="text-xs text-muted-foreground">{v.vaccineDescription}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={config.variant}>{config.label}</Badge>
+                    {isPending && onAdminister && (
+                      <button
+                        onClick={() => onAdminister(v.id)}
+                        className="text-xs font-medium text-primary hover:underline"
+                      >
+                        Administer
+                      </button>
                     )}
                   </div>
-                  <Badge variant={config.variant}>{config.label}</Badge>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span>Due: {v.dueDate}</span>

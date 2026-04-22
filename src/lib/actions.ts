@@ -373,17 +373,31 @@ export async function createGrowthRecord(formData: FormData) {
   const date = formData.get("date") as string;
   const weightKg = parseFloat(formData.get("weightKg") as string);
   const heightCm = parseFloat(formData.get("heightCm") as string);
-  const ageInWeeks = parseInt(formData.get("ageInWeeks") as string, 10);
 
   if (
     !patientId ||
     !date ||
     Number.isNaN(weightKg) ||
-    Number.isNaN(heightCm) ||
-    Number.isNaN(ageInWeeks)
+    Number.isNaN(heightCm)
   ) {
     throw new Error("Missing or invalid fields");
   }
+
+  // Compute age in weeks from patient's date of birth
+  const [patientRow] = await db
+    .select({ dateOfBirth: patients.dateOfBirth })
+    .from(patients)
+    .where(eq(patients.id, patientId))
+    .limit(1);
+
+  if (!patientRow) {
+    throw new Error("Patient not found");
+  }
+
+  const dob = new Date(patientRow.dateOfBirth);
+  const recordDate = new Date(date);
+  const diffMs = recordDate.getTime() - dob.getTime();
+  const ageInWeeks = Math.floor(diffMs / (1000 * 60 * 60 * 24 * 7));
 
   await db.insert(growthRecords).values({
     patientId,
@@ -448,26 +462,18 @@ export async function createVaccinationRecord(formData: FormData) {
   }
 
   const patientId = formData.get("patientId") as string;
-  const vaccineId = formData.get("vaccineId") as string;
+  const vaccineName = formData.get("vaccineName") as string;
   const dueDate = formData.get("dueDate") as string;
-  const administeredDate = (formData.get("administeredDate") as string) || null;
-  const batchNumber = (formData.get("batchNumber") as string) || null;
-  const clinic = (formData.get("clinic") as string) || null;
-  const status = (formData.get("status") as "upcoming" | "due_this_week" | "overdue" | "administered") || "upcoming";
 
-  if (!patientId || !vaccineId || !dueDate) {
+  if (!patientId || !vaccineName || !dueDate) {
     throw new Error("Missing required fields");
   }
 
   await db.insert(vaccinationRecords).values({
     patientId,
-    vaccineId,
+    vaccineName,
     dueDate,
-    administeredDate,
     administeredById: user.id,
-    batchNumber,
-    clinic,
-    status,
   });
 
   revalidatePath("/medical-professional");
@@ -484,15 +490,39 @@ export async function updateVaccinationRecord(id: string, formData: FormData) {
   const administeredDate = (formData.get("administeredDate") as string) || null;
   const batchNumber = (formData.get("batchNumber") as string) || null;
   const clinic = (formData.get("clinic") as string) || null;
-  const status = formData.get("status") as "upcoming" | "due_this_week" | "overdue" | "administered";
 
-  if (!dueDate || !status) {
+  if (!dueDate) {
     throw new Error("Missing required fields");
   }
 
   await db
     .update(vaccinationRecords)
-    .set({ dueDate, administeredDate, batchNumber, clinic, status })
+    .set({ dueDate, administeredDate, batchNumber, clinic })
+    .where(eq(vaccinationRecords.id, id));
+
+  revalidatePath("/medical-professional");
+  revalidatePath("/parent");
+}
+
+export async function markVaccineAdministered(
+  id: string,
+  administeredDate: string,
+  batchNumber?: string,
+  clinic?: string,
+) {
+  const user = await getSessionUser();
+  if (user.role !== "medical_professional") {
+    throw new Error("Unauthorized");
+  }
+
+  await db
+    .update(vaccinationRecords)
+    .set({
+      administeredDate,
+      administeredById: user.id,
+      batchNumber: batchNumber || null,
+      clinic: clinic || null,
+    })
     .where(eq(vaccinationRecords.id, id));
 
   revalidatePath("/medical-professional");

@@ -23,9 +23,11 @@ type Patient = { id: string; name: string };
 export function AddPrescriptionModal({
   children,
   patients,
+  defaultPatientId,
 }: {
   children: React.ReactNode;
   patients: Patient[];
+  defaultPatientId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -54,17 +56,21 @@ export function AddPrescriptionModal({
           <DialogTitle>New Prescription</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="patientId">Patient</Label>
-            <select id="patientId" name="patientId" required className={selectClass}>
-              <option value="">Select patient</option>
-              {patients.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {defaultPatientId ? (
+            <input type="hidden" name="patientId" value={defaultPatientId} />
+          ) : (
+            <div>
+              <Label htmlFor="patientId">Patient</Label>
+              <select id="patientId" name="patientId" required className={selectClass}>
+                <option value="">Select patient</option>
+                {patients.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <Label htmlFor="medication">Medication</Label>
             <Input id="medication" name="medication" required />

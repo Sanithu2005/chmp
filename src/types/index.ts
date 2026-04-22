@@ -32,6 +32,7 @@ export interface Patient {
   dateOfBirth: Date;
   gender: Gender;
   bloodType: BloodType;
+  image?: string | null;
   registrationDate: Date;
 }
 
@@ -82,26 +83,15 @@ export interface Prescription {
 
 // ─── Vaccinations ─────────────────────────────────────────────────────────────
 
-export type VaccinationStatus = "upcoming" | "due_this_week" | "overdue" | "administered";
-
-export interface Vaccine {
-  id: string;
-  name: string;
-  recommendedAgeWeeks: number;
-  description?: string;
-}
-
 export interface VaccinationRecord {
   id: string;
   patientId: string;
-  vaccineId: string;
   vaccineName: string;
-  administeredBy: string;
-  date: Date;
+  administeredById?: string;
+  dueDate: Date;
+  administeredDate?: Date;
   batchNumber?: string;
   clinic?: string;
-  status: VaccinationStatus;
-  dueDate: Date;
 }
 
 // ─── Growth Records ───────────────────────────────────────────────────────────

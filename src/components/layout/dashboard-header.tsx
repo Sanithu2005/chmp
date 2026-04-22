@@ -12,7 +12,7 @@ type DashboardHeaderProps = {
 };
 
 export function DashboardHeader({
-  title = "CHMP Portal",
+  title = "CHMP",
   subtitle,
   userName,
   userRole,

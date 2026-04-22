@@ -13,6 +13,7 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,10 +26,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { authClient } from "@/lib/auth-client";
+import { ageLabel } from "@/lib/utils";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
-import { AddAppointmentModal } from "@/components/modals/add-appointment-modal";
+import { Footer } from "@/components/layout/footer";
 import { AddPrescriptionModal } from "@/components/modals/add-prescription-modal";
 import { AddGrowthRecordModal } from "@/components/modals/add-growth-record-modal";
+import { AddVaccinationRecordModal } from "@/components/modals/add-vaccination-record-modal";
+import { AdministerVaccineModal } from "@/components/modals/administer-vaccine-modal";
 import { EditPatientModal } from "@/components/modals/edit-patient-modal";
 import { EditAppointmentModal } from "@/components/modals/edit-appointment-modal";
 import { EditPrescriptionModal } from "@/components/modals/edit-prescription-modal";
@@ -48,16 +52,10 @@ const GrowthChart = dynamic(() => import("@/components/parent/growth-chart"), {
   ssr: false,
 });
 
-function ageLabel(dob: string): string {
-  const birth = new Date(dob);
-  const now = new Date();
-  const weeks = Math.floor(
-    (now.getTime() - birth.getTime()) / (1000 * 60 * 60 * 24 * 7)
-  );
-  if (weeks < 4) return `${weeks}w`;
-  const months = Math.floor(weeks / 4.33);
-  if (months < 24) return `${months} months`;
-  return `${Math.floor(months / 12)} years`;
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 type Props = {
@@ -70,6 +68,7 @@ type Props = {
     dateOfBirth: string;
     gender: string;
     bloodType: string | null;
+    image: string | null;
   };
   appointments: {
     id: string;
@@ -98,14 +97,11 @@ type Props = {
   }[];
   vaccinations: {
     id: string;
-    status: string;
     dueDate: string;
     administeredDate: string | null;
     batchNumber: string | null;
     clinic: string | null;
     vaccineName: string;
-    vaccineDescription: string | null;
-    recommendedAgeWeeks: number;
   }[];
 };
 
@@ -122,6 +118,11 @@ export default function PatientDetail({
   const router = useRouter();
   const [deleteTarget, setDeleteTarget] = useState<{
     type: string;
+    id: string;
+    name: string;
+  } | null>(null);
+
+  const [administerTarget, setAdministerTarget] = useState<{
     id: string;
     name: string;
   } | null>(null);
@@ -154,13 +155,13 @@ export default function PatientDetail({
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/30">
       <DashboardHeader
-        subtitle={isMedicalProfessional ? "Medical Professional" : "Parent Portal"}
+        subtitle={isMedicalProfessional ? "Medical Professional Portal" : "Parent Portal"}
         userName={userName}
         userRole={isMedicalProfessional ? "Medical Professional" : "Parent"}
         onLogout={handleLogout}
       />
 
-      <main className="flex-1 space-y-6 p-4 sm:p-6 md:p-8 max-w-5xl mx-auto w-full">
+      <main className="flex-1 space-y-6 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full">
         {/* Back + Patient Hero */}
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" asChild>
@@ -190,12 +191,15 @@ export default function PatientDetail({
                   <StatPill label="Blood Type" value={patient.bloodType ?? "Unknown"} />
                 </div>
               </div>
-              <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-primary/20">
-                <Baby className="h-10 w-10 text-primary" />
-              </div>
+              <Avatar className="h-20 w-20 border-2 border-primary/20">
+                <AvatarImage src={patient.image ?? undefined} alt={patient.name} />
+                <AvatarFallback className="bg-primary/20 text-primary text-lg font-bold">
+                  {getInitials(patient.name)}
+                </AvatarFallback>
+              </Avatar>
             </div>
 
-            {  isMedicalProfessional && (
+            {!isMedicalProfessional && (
               <div className="flex gap-2 mt-6">
                 <EditPatientModal patient={patient}>
                   <Button variant="outline" size="sm">
@@ -306,7 +310,7 @@ export default function PatientDetail({
                   <CardDescription>Medications for {patient.name}.</CardDescription>
                 </div>
                 {  isMedicalProfessional && (
-                  <AddPrescriptionModal patients={[{ id: patient.id, name: patient.name }]}>
+                  <AddPrescriptionModal patients={[]} defaultPatientId={patient.id}>
                     <Button size="sm">
                       <Pill className="mr-2 h-4 w-4" /> Prescribe
                     </Button>
@@ -382,7 +386,7 @@ export default function PatientDetail({
                   <CardDescription>Weight and height over time.</CardDescription>
                 </div>
                 {  isMedicalProfessional && (
-                  <AddGrowthRecordModal patients={[{ id: patient.id, name: patient.name }]}>
+                  <AddGrowthRecordModal patients={[]} defaultPatientId={patient.id}>
                     <Button size="sm">
                       <TrendingUp className="mr-2 h-4 w-4" /> Record
                     </Button>
@@ -456,23 +460,54 @@ export default function PatientDetail({
           {/* VACCINATIONS */}
           <TabsContent value="vaccinations" className="mt-6">
             <Card>
-              <CardHeader>
-                <CardTitle>Vaccination Schedule</CardTitle>
-                <CardDescription>
-                  Immunisation records for {patient.name}.
-                </CardDescription>
+              <CardHeader className="flex flex-row items-center justify-between pb-4">
+                <div className="space-y-1">
+                  <CardTitle>Vaccination Schedule</CardTitle>
+                  <CardDescription>
+                    Immunisation records for {patient.name}.
+                  </CardDescription>
+                </div>
+                {isMedicalProfessional && (
+                  <AddVaccinationRecordModal patientId={patient.id}>
+                    <Button size="sm">
+                      <Syringe className="mr-2 h-4 w-4" /> Add Record
+                    </Button>
+                  </AddVaccinationRecordModal>
+                )}
               </CardHeader>
               <CardContent>
                 {vaccinations.length === 0 ? (
                   <EmptyState icon={<Syringe />} message="No vaccination records yet." />
                 ) : (
-                  <VaccinationSchedule vaccinations={vaccinations} />
+                  <VaccinationSchedule
+                    vaccinations={vaccinations}
+                    onAdminister={
+                      isMedicalProfessional
+                        ? (id) => {
+                            const v = vaccinations.find((x) => x.id === id);
+                            if (v) setAdministerTarget({ id, name: v.vaccineName });
+                          }
+                        : undefined
+                    }
+                  />
                 )}
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Administer vaccine modal */}
+      {administerTarget && (
+        <AdministerVaccineModal
+          open
+          onOpenChange={(open) => {
+            if (!open) setAdministerTarget(null);
+          }}
+          recordId={administerTarget.id}
+          vaccineName={administerTarget.name}
+        />
+      )}
 
       {/* Delete confirmation handler */}
       {deleteTarget && (
@@ -486,6 +521,7 @@ export default function PatientDetail({
           onConfirm={handleDelete}
         />
       )}
+      <Footer />
     </div>
   );
 }

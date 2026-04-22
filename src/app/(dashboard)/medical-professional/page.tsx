@@ -36,7 +36,7 @@ export default async function MedicalProfessionalDashboardPage() {
 
   // Common data for both roles
   const [patients, prescriptions, allPatients, allParents] = await Promise.all([
-    getDoctorPatients(doctorId),
+    getDoctorPatients(doctorId, medicalRole ?? "pediatrician"),
     getDoctorPrescriptions(doctorId),
     getAllPatients(),
     getAllParents(),

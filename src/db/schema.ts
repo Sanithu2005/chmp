@@ -8,7 +8,7 @@ export const bloodTypeEnum = pgEnum("blood_type", ["A+", "A-", "B+", "B-", "AB+"
 export const appointmentTypeEnum = pgEnum("appointment_type", ["Routine", "Vaccination", "Follow-up"]);
 export const appointmentStatusEnum = pgEnum("appointment_status", ["pending", "upcoming", "completed", "cancelled"]);
 export const prescriptionStatusEnum = pgEnum("prescription_status", ["active", "pending", "completed", "cancelled"]);
-export const vaccinationStatusEnum = pgEnum("vaccination_status", ["upcoming", "due_this_week", "overdue", "administered"]);
+
 
 // --- Tables ---
 
@@ -67,6 +67,7 @@ export const patients = pgTable("patients", {
   dateOfBirth: date("date_of_birth").notNull(),
   gender: genderEnum("gender").notNull(),
   bloodType: bloodTypeEnum("blood_type").default("Unknown"),
+  image: text("image"),
   registrationDate: timestamp("registration_date").notNull().defaultNow(),
 });
 
@@ -78,23 +79,15 @@ export const parentPatients = pgTable("parent_patients", {
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
-export const vaccines = pgTable("vaccines", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  name: text("name").notNull(),
-  recommendedAgeWeeks: integer("recommended_age_weeks").notNull(),
-  description: text("description"),
-});
-
 export const vaccinationRecords = pgTable("vaccination_records", {
   id: uuid("id").primaryKey().defaultRandom(),
   patientId: uuid("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
-  vaccineId: uuid("vaccine_id").notNull().references(() => vaccines.id),
+  vaccineName: text("vaccine_name").notNull(),
   administeredById: text("administered_by_id").references(() => users.id),
   dueDate: date("due_date").notNull(),
   administeredDate: date("administered_date"),
   batchNumber: text("batch_number"),
   clinic: text("clinic"),
-  status: vaccinationStatusEnum("status").notNull().default("upcoming"),
 });
 
 export const growthRecords = pgTable("growth_records", {

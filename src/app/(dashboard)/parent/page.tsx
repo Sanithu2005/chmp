@@ -8,7 +8,6 @@ import {
   getChildPrescriptions,
   getChildGrowthRecords,
   getChildVaccinations,
-  getAllPediatricians,
 } from "@/lib/queries";
 import type { Metadata } from "next";
 
@@ -35,16 +34,15 @@ export default async function ParentDashboardPage({
   const primaryChild =
     children.find((c) => c.id === selectedChildId) ?? children[0] ?? null;
 
-  const [appointments, prescriptions, growthRecords, vaccinations, pediatricians] =
+  const [appointments, prescriptions, growthRecords, vaccinations] =
     primaryChild
       ? await Promise.all([
           getChildAppointments(primaryChild.id),
           getChildPrescriptions(primaryChild.id),
           getChildGrowthRecords(primaryChild.id),
           getChildVaccinations(primaryChild.id),
-          getAllPediatricians(),
         ])
-      : [[], [], [], [], await getAllPediatricians()];
+      : [[], [], [], []];
 
   return (
     <ParentDashboard
@@ -55,7 +53,6 @@ export default async function ParentDashboardPage({
       prescriptions={prescriptions}
       growthRecords={growthRecords}
       vaccinations={vaccinations}
-      doctors={pediatricians}
     />
   );
 }

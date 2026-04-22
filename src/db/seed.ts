@@ -25,7 +25,6 @@ async function seed() {
   await db.delete(schema.appointments);
   await db.delete(schema.growthRecords);
   await db.delete(schema.vaccinationRecords);
-  await db.delete(schema.vaccines);
   await db.delete(schema.parentPatients);
   await db.delete(schema.patients);
   await db.delete(schema.doctorAvailability);
@@ -127,26 +126,7 @@ async function seed() {
     { parentId: parent2Id, patientId: thehan.id },
   ]);
 
-  // ── 4. Insert Vaccines (Sri Lanka National Immunization Schedule) ─────────
-  console.log("💉 Seeding Vaccines...");
-  const vaccinesData = await db
-    .insert(schema.vaccines)
-    .values([
-      { name: "BCG", recommendedAgeWeeks: 0, description: "At birth" },
-      { name: "OPV 1", recommendedAgeWeeks: 8, description: "2 months" },
-      { name: "Pentavalent 1", recommendedAgeWeeks: 8, description: "2 months" },
-      { name: "OPV 2", recommendedAgeWeeks: 16, description: "4 months" },
-      { name: "Pentavalent 2", recommendedAgeWeeks: 16, description: "4 months" },
-      { name: "OPV 3", recommendedAgeWeeks: 24, description: "6 months" },
-      { name: "Pentavalent 3", recommendedAgeWeeks: 24, description: "6 months" },
-      { name: "MMR 1", recommendedAgeWeeks: 36, description: "9 months" },
-      { name: "Japanese Encephalitis", recommendedAgeWeeks: 52, description: "1 year" },
-    ])
-    .returning();
-
-  const [bcg, opv1, penta1, opv2, penta2, opv3, penta3, mmr1, je] = vaccinesData;
-
-  // ── 5. Insert Vaccination Records for Sanuli ────────────────────────────────
+  // ── 4. Insert Vaccination Records for Sanuli ────────────────────────────────
   // Sanuli born 2023-08-15. By Feb 2024 she is ~26 weeks.
   // Administered: BCG, OPV1, Penta1, OPV2, Penta2 (all done by 4 months)
   // Due this week: OPV3, Penta3 (6 months = ~week 26)
@@ -155,77 +135,68 @@ async function seed() {
   await db.insert(schema.vaccinationRecords).values([
     {
       patientId: sanuli.id,
-      vaccineId: bcg.id,
+      vaccineName: "BCG",
       administeredById: pediatricianId,
       dueDate: "2023-08-15",
       administeredDate: "2023-08-15",
       batchNumber: "BCG-2023-001",
       clinic: "Lady Ridgeway Hospital for Children",
-      status: "administered",
     },
     {
       patientId: sanuli.id,
-      vaccineId: opv1.id,
+      vaccineName: "OPV 1",
       administeredById: pediatricianId,
       dueDate: "2023-10-10",
       administeredDate: "2023-10-12",
       batchNumber: "OPV-2023-A42",
       clinic: "Lady Ridgeway Hospital for Children",
-      status: "administered",
     },
     {
       patientId: sanuli.id,
-      vaccineId: penta1.id,
+      vaccineName: "Pentavalent 1",
       administeredById: pediatricianId,
       dueDate: "2023-10-10",
       administeredDate: "2023-10-12",
       batchNumber: "PENTA-2023-B17",
       clinic: "Lady Ridgeway Hospital for Children",
-      status: "administered",
     },
     {
       patientId: sanuli.id,
-      vaccineId: opv2.id,
+      vaccineName: "OPV 2",
       administeredById: pediatricianId,
       dueDate: "2023-12-05",
       administeredDate: "2023-12-06",
       batchNumber: "OPV-2023-A89",
       clinic: "Lady Ridgeway Hospital for Children",
-      status: "administered",
     },
     {
       patientId: sanuli.id,
-      vaccineId: penta2.id,
+      vaccineName: "Pentavalent 2",
       administeredById: pediatricianId,
       dueDate: "2023-12-05",
       administeredDate: "2023-12-06",
       batchNumber: "PENTA-2023-B55",
       clinic: "Lady Ridgeway Hospital for Children",
-      status: "administered",
     },
     {
       patientId: sanuli.id,
-      vaccineId: opv3.id,
+      vaccineName: "OPV 3",
       dueDate: "2024-02-06",
-      status: "due_this_week",
     },
     {
       patientId: sanuli.id,
-      vaccineId: penta3.id,
+      vaccineName: "Pentavalent 3",
       dueDate: "2024-02-06",
-      status: "due_this_week",
     },
     {
       patientId: sanuli.id,
-      vaccineId: mmr1.id,
+      vaccineName: "MMR 1",
       dueDate: "2024-05-07",
-      status: "upcoming",
     },
     {
       patientId: sanuli.id,
-      vaccineId: je.id,
+      vaccineName: "Japanese Encephalitis",
       dueDate: "2024-08-14",
-      status: "upcoming",
     },
   ]);
 

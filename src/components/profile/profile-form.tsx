@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
+import { Footer } from "@/components/layout/footer";
 import { Camera, Loader2, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -126,13 +127,13 @@ export function ProfileForm({ user }: { user: User }) {
   return (
     <div className="flex min-h-screen w-full flex-col bg-muted/30">
       <DashboardHeader
-        subtitle="Manage your account"
+        subtitle={user.role === "medical_professional" ? "Medical Professional Portal" : "Parent Portal"}
         userName={user.name}
         userRole={user.role === "medical_professional" ? "Pediatrician" : "Parent"}
         onLogout={handleLogout}
       />
 
-      <main className="flex-1 space-y-6 p-4 sm:p-6 md:p-8 max-w-2xl mx-auto w-full">
+      <main className="flex-1 space-y-6 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" asChild>
             <Link href={user.role === "medical_professional" ? "/medical-professional" : "/parent"}>
@@ -288,6 +289,7 @@ export function ProfileForm({ user }: { user: User }) {
           </CardContent>
         </Card>
       </main>
+      <Footer />
     </div>
   );
 }

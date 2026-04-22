@@ -23,9 +23,11 @@ type Patient = { id: string; name: string };
 export function AddGrowthRecordModal({
   children,
   patients,
+  defaultPatientId,
 }: {
   children: React.ReactNode;
   patients: Patient[];
+  defaultPatientId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -54,17 +56,21 @@ export function AddGrowthRecordModal({
           <DialogTitle>Record Growth Data</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="patientId">Patient</Label>
-            <select id="patientId" name="patientId" required className={selectClass}>
-              <option value="">Select patient</option>
-              {patients.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          {defaultPatientId ? (
+            <input type="hidden" name="patientId" value={defaultPatientId} />
+          ) : (
+            <div>
+              <Label htmlFor="patientId">Patient</Label>
+              <select id="patientId" name="patientId" required className={selectClass}>
+                <option value="">Select patient</option>
+                {patients.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div>
             <Label htmlFor="date">Date</Label>
             <Input id="date" name="date" type="date" required />
@@ -79,10 +85,7 @@ export function AddGrowthRecordModal({
               <Input id="heightCm" name="heightCm" type="number" step="0.1" required />
             </div>
           </div>
-          <div>
-            <Label htmlFor="ageInWeeks">Age (weeks)</Label>
-            <Input id="ageInWeeks" name="ageInWeeks" type="number" required />
-          </div>
+
           <DialogFooter>
             <Button type="submit" disabled={pending}>
               {pending ? "Saving..." : "Save Record"}
