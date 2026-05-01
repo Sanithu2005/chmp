@@ -8,6 +8,7 @@ export const bloodTypeEnum = pgEnum("blood_type", ["A+", "A-", "B+", "B-", "AB+"
 export const appointmentTypeEnum = pgEnum("appointment_type", ["Routine", "Vaccination", "Follow-up"]);
 export const appointmentStatusEnum = pgEnum("appointment_status", ["pending", "upcoming", "completed", "cancelled"]);
 export const prescriptionStatusEnum = pgEnum("prescription_status", ["active", "pending", "completed", "cancelled"]);
+export const appointmentActivityTypeEnum = pgEnum("appointment_activity_type", ["vaccine_administered", "prescription_started", "prescription_continued", "prescription_stopped", "growth_measured", "general_note", "custom"]);
 
 
 // --- Tables ---
@@ -97,6 +98,8 @@ export const growthRecords = pgTable("growth_records", {
   weightKg: doublePrecision("weight_kg").notNull(),
   heightCm: doublePrecision("height_cm").notNull(),
   ageInWeeks: integer("age_in_weeks").notNull(),
+  weightForAgeZScore: doublePrecision("weight_for_age_z_score"),
+  heightForAgeZScore: doublePrecision("height_for_age_z_score"),
   recordedById: text("recorded_by_id").notNull().references(() => users.id),
 });
 
@@ -122,6 +125,34 @@ export const prescriptions = pgTable("prescriptions", {
   endDate: date("end_date"),
   status: prescriptionStatusEnum("status").notNull().default("active"),
   notes: text("notes"),
+});
+
+export const visitSummaries = pgTable("visit_summaries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  appointmentId: uuid("appointment_id").notNull().references(() => appointments.id, { onDelete: "cascade" }),
+  patientId: uuid("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+  doctorId: text("doctor_id").notNull().references(() => users.id),
+  summary: text("summary").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const appointmentActivities = pgTable("appointment_activities", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  appointmentId: uuid("appointment_id").notNull().references(() => appointments.id, { onDelete: "cascade" }),
+  type: appointmentActivityTypeEnum("type").notNull(),
+  description: text("description").notNull(),
+  metadata: text("metadata"), // JSON string for optional structured data
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const growthPredictions = pgTable("growth_predictions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  patientId: uuid("patient_id").notNull().references(() => patients.id, { onDelete: "cascade" }),
+  projectedRecords: text("projected_records").notNull(), // JSON array
+  percentileData: text("percentile_data").notNull(), // JSON array
+  trajectoryExplanation: text("trajectory_explanation"),
+  combinedExplanation: text("combined_explanation"), // cached AI growth analysis explanation
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 // Pediatrician availability: recurring weekly schedule

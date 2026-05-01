@@ -8,8 +8,9 @@ import {
   vaccinationRecords,
   parentPatients,
   doctorAvailability,
+  visitSummaries,
 } from "@/db/schema";
-import { eq, and, desc, sql, ilike } from "drizzle-orm";
+import { eq, and, or, desc, sql, ilike } from "drizzle-orm";
 
 // ─── Medical Professional queries ────────────────────────────────────────────
 
@@ -299,10 +300,36 @@ export async function getChildGrowthRecords(childId: string) {
       weightKg: growthRecords.weightKg,
       heightCm: growthRecords.heightCm,
       ageInWeeks: growthRecords.ageInWeeks,
+      weightForAgeZScore: growthRecords.weightForAgeZScore,
+      heightForAgeZScore: growthRecords.heightForAgeZScore,
     })
     .from(growthRecords)
     .where(eq(growthRecords.patientId, childId))
     .orderBy(growthRecords.date);
+}
+
+export async function getVisitSummaryForAppointment(appointmentId: string) {
+  const rows = await db
+    .select()
+    .from(visitSummaries)
+    .where(eq(visitSummaries.appointmentId, appointmentId))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
+export async function getVisitSummariesForPatient(patientId: string) {
+  return db
+    .select({
+      id: visitSummaries.id,
+      appointmentId: visitSummaries.appointmentId,
+      summary: visitSummaries.summary,
+      createdAt: visitSummaries.createdAt,
+      doctorName: users.name,
+    })
+    .from(visitSummaries)
+    .innerJoin(users, eq(visitSummaries.doctorId, users.id))
+    .where(eq(visitSummaries.patientId, patientId))
+    .orderBy(desc(visitSummaries.createdAt));
 }
 
 export async function getChildVaccinations(childId: string) {
@@ -348,7 +375,12 @@ export async function searchPatients(query: string) {
       image: patients.image,
     })
     .from(patients)
-    .where(ilike(patients.name, q))
+    .where(
+      or(
+        ilike(patients.name, q),
+        ilike(patients.bloodType, q)
+      )
+    )
     .orderBy(patients.name)
     .limit(10);
 }

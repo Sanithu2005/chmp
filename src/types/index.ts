@@ -118,6 +118,18 @@ export interface HealthMetric {
   status: "normal" | "warning" | "critical";
 }
 
+// ─── Visit Summaries ───────────────────────────────────────────────────────────
+
+export interface VisitSummary {
+  id: string;
+  appointmentId: string;
+  patientId: string;
+  doctorId: string;
+  doctorName: string;
+  summary: string;
+  createdAt: Date;
+}
+
 // ─── WHO LMS ──────────────────────────────────────────────────────────────────
 
 export interface LMSEntry {

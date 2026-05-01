@@ -12,6 +12,7 @@ import {
   Syringe,
   Pencil,
   Trash2,
+  Sparkles,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -38,14 +39,19 @@ import { EditAppointmentModal } from "@/components/modals/edit-appointment-modal
 import { EditPrescriptionModal } from "@/components/modals/edit-prescription-modal";
 import { EditGrowthRecordModal } from "@/components/modals/edit-growth-record-modal";
 import { ConfirmDeleteModal } from "@/components/modals/confirm-delete-modal";
+import { CompleteAppointmentModal } from "@/components/modals/complete-appointment-modal";
 import {
   confirmAppointment,
+  updateAppointmentStatus,
   deleteAppointment,
   deletePrescription,
   deleteGrowthRecord,
   deletePatient,
+  generateVisitSummary,
 } from "@/lib/actions";
 import VaccinationSchedule from "@/components/parent/vaccination-schedule";
+import AiGrowthAnalysisCard from "@/components/patient/ai-growth-analysis-card";
+import VisitSummaryCard from "@/components/patient/visit-summary-card";
 import dynamic from "next/dynamic";
 
 const GrowthChart = dynamic(() => import("@/components/parent/growth-chart"), {
@@ -94,6 +100,8 @@ type Props = {
     weightKg: number;
     heightCm: number;
     ageInWeeks: number;
+    weightForAgeZScore: number | null;
+    heightForAgeZScore: number | null;
   }[];
   vaccinations: {
     id: string;
@@ -102,6 +110,13 @@ type Props = {
     batchNumber: string | null;
     clinic: string | null;
     vaccineName: string;
+  }[];
+  visitSummaries: {
+    id: string;
+    appointmentId: string;
+    summary: string;
+    createdAt: string;
+    doctorName: string;
   }[];
 };
 
@@ -114,6 +129,7 @@ export default function PatientDetail({
   prescriptions,
   growthRecords,
   vaccinations,
+  visitSummaries,
 }: Props) {
   const router = useRouter();
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -126,6 +142,8 @@ export default function PatientDetail({
     id: string;
     name: string;
   } | null>(null);
+
+  const [generatingSummaryId, setGeneratingSummaryId] = useState<string | null>(null);
 
   const handleLogout = async () => {
     await authClient.signOut();
@@ -260,41 +278,107 @@ export default function PatientDetail({
                   <EmptyState icon={<Calendar />} message="No appointments yet." />
                 ) : (
                   <div className="space-y-3">
-                    {appointments.map((apt) => (
-                      <div
-                        key={apt.id}
-                        className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-lg border p-4"
-                      >
-                        <div>
-                          <p className="font-medium">{apt.doctorName}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {apt.type} · {apt.date} · {apt.time}
-                          </p>
-                          {apt.notes && (
-                            <p className="text-xs text-muted-foreground mt-1 italic">{apt.notes}</p>
+                    {appointments.map((apt) => {
+                      const summary = visitSummaries.find((s) => s.appointmentId === apt.id);
+                      return (
+                        <div key={apt.id} className="rounded-lg border">
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4">
+                            <div>
+                              <p className="font-medium">{apt.doctorName}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {apt.type} · {apt.date} · {apt.time}
+                              </p>
+                              {apt.notes && (
+                                <p className="text-xs text-muted-foreground mt-1 italic">{apt.notes}</p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant={apt.status === "upcoming" ? "default" : apt.status === "completed" ? "success" : apt.status === "cancelled" ? "destructive" : "secondary"}
+                              >
+                                {apt.status}
+                              </Badge>
+                              {isMedicalProfessional && userMedicalRole === "pediatrician" && apt.status === "pending" && (
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={async () => {
+                                    await confirmAppointment(apt.id);
+                                    router.refresh();
+                                  }}
+                                >
+                                  Confirm
+                                </Button>
+                              )}
+                              {isMedicalProfessional && userMedicalRole === "pediatrician" && apt.status === "upcoming" && (
+                                <>
+                                  <CompleteAppointmentModal
+                                    appointmentId={apt.id}
+                                    vaccinations={vaccinations}
+                                    prescriptions={prescriptions}
+                                  >
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                                    >
+                                      Complete
+                                    </Button>
+                                  </CompleteAppointmentModal>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                    onClick={async () => {
+                                      await updateAppointmentStatus(apt.id, "cancelled");
+                                      router.refresh();
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          {summary && (
+                            <div className="border-t">
+                              <VisitSummaryCard summary={summary} />
+                            </div>
+                          )}
+                          {!summary && apt.status === "completed" && (
+                            <div className="border-t p-4 bg-muted/30">
+                              <div className="flex items-center justify-between">
+                                <p className="text-sm text-muted-foreground">
+                                  Visit summary was not generated automatically.
+                                </p>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={generatingSummaryId === apt.id}
+                                  onClick={async () => {
+                                    setGeneratingSummaryId(apt.id);
+                                    try {
+                                      const result = await generateVisitSummary(apt.id);
+                                      if (result) {
+                                        router.refresh();
+                                      } else {
+                                        alert("Failed to generate summary. Please try again.");
+                                      }
+                                    } catch (err) {
+                                      alert(err instanceof Error ? err.message : "Failed to generate summary");
+                                    } finally {
+                                      setGeneratingSummaryId(null);
+                                    }
+                                  }}
+                                >
+                                  {generatingSummaryId === apt.id ? "Generating..." : "Generate Summary"}
+                                </Button>
+                              </div>
+                            </div>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant={apt.status === "upcoming" ? "default" : "secondary"}
-                          >
-                            {apt.status}
-                          </Badge>
-                          {isMedicalProfessional && userMedicalRole === "pediatrician" && apt.status === "pending" && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={async () => {
-                                await confirmAppointment(apt.id);
-                                router.refresh();
-                              }}
-                            >
-                              Confirm
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
@@ -401,6 +485,14 @@ export default function PatientDetail({
                 )}
               </CardContent>
             </Card>
+
+            {growthRecords.length > 0 && (
+              <AiGrowthAnalysisCard
+                patientId={patient.id}
+                userRole={userRole as "parent" | "medical_professional"}
+                growthRecords={growthRecords}
+              />
+            )}
 
             {growthRecords.length > 0 && (
               <Card>

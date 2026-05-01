@@ -13,6 +13,7 @@ import {
   AlertCircle,
   Stethoscope,
   Baby,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,6 +33,7 @@ import { Footer } from "@/components/layout/footer";
 import { ManageAvailabilityModal } from "@/components/modals/manage-availability-modal";
 import { confirmAppointment } from "@/lib/actions";
 import { ageLabel } from "@/lib/utils";
+import AIPatientSearch from "@/components/medical-professional/ai-patient-search";
 
 // ─── Prop types ────────────────────────────────────────────────────────────────
 
@@ -117,6 +119,7 @@ export default function MedicalProfessionalDashboard({
   const [patientSearchResults, setPatientSearchResults] = useState<Patient[]>([]);
   const [patientSearchLoading, setPatientSearchLoading] = useState(false);
   const [patientSearchMode, setPatientSearchMode] = useState(false);
+  const [aiSearchMode, setAiSearchMode] = useState(false);
 
   const isPediatrician = medicalRole === "pediatrician";
   const isMidwife = medicalRole === "midwife";
@@ -366,93 +369,119 @@ export default function MedicalProfessionalDashboard({
               <CardHeader className="flex flex-row items-center justify-between pb-4">
                 <div className="space-y-1">
                   <CardTitle>
-                    {patientSearchMode ? "Search Results" : "My Patients"}
+                    {aiSearchMode
+                      ? "AI Search"
+                      : patientSearchMode
+                        ? "Search Results"
+                        : "My Patients"}
                   </CardTitle>
                   <CardDescription>
-                    {patientSearchMode
-                      ? `${patientSearchResults.length} result${patientSearchResults.length !== 1 ? "s" : ""} found.`
-                      : `${patients.length} patient${patients.length !== 1 ? "s" : ""} under your care.`}
+                    {aiSearchMode
+                      ? "Search patients using natural language."
+                      : patientSearchMode
+                        ? `${patientSearchResults.length} result${patientSearchResults.length !== 1 ? "s" : ""} found.`
+                        : `${patients.length} patient${patients.length !== 1 ? "s" : ""} under your care.`}
                   </CardDescription>
                 </div>
-
+                <div className="flex gap-2">
+                  <Button
+                    variant={aiSearchMode ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => {
+                      setAiSearchMode(!aiSearchMode);
+                      setPatientSearchQuery("");
+                      setPatientSearchMode(false);
+                      setPatientSearchResults([]);
+                    }}
+                  >
+                    <Sparkles className="mr-1 h-3.5 w-3.5" />
+                    {aiSearchMode ? "Name Search" : "AI Search"}
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="mb-6 relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search all patients by name..."
-                    className="pl-9 max-w-sm"
-                    value={patientSearchQuery}
-                    onChange={(e) => setPatientSearchQuery(e.target.value)}
-                  />
-                  {patientSearchMode && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-1 top-1/2 -translate-y-1/2"
-                      onClick={() => {
-                        setPatientSearchQuery("");
-                        setPatientSearchMode(false);
-                        setPatientSearchResults([]);
-                      }}
-                    >
-                      Clear
-                    </Button>
-                  )}
-                </div>
-                {patientSearchLoading ? (
-                  <div className="flex flex-col items-center py-10 text-center">
-                    <Users className="mb-3 h-10 w-10 text-muted-foreground/40 animate-pulse" />
-                    <p className="text-sm text-muted-foreground">Searching patients...</p>
-                  </div>
+                {aiSearchMode ? (
+                  <AIPatientSearch />
                 ) : (
-                  (() => {
-                    const displayPatients = patientSearchMode ? patientSearchResults : patients;
-                    return displayPatients.length === 0 ? (
+                  <>
+                    <div className="mb-6 relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search all patients by name..."
+                        className="pl-9 max-w-sm"
+                        value={patientSearchQuery}
+                        onChange={(e) => setPatientSearchQuery(e.target.value)}
+                      />
+                      {patientSearchMode && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="absolute right-1 top-1/2 -translate-y-1/2"
+                          onClick={() => {
+                            setPatientSearchQuery("");
+                            setPatientSearchMode(false);
+                            setPatientSearchResults([]);
+                          }}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                    {patientSearchLoading ? (
                       <div className="flex flex-col items-center py-10 text-center">
-                        <Users className="mb-3 h-10 w-10 text-muted-foreground/40" />
-                        <p className="text-sm text-muted-foreground">
-                          {patientSearchMode ? "No patients found." : "No patients under your care yet."}
-                        </p>
+                        <Users className="mb-3 h-10 w-10 text-muted-foreground/40 animate-pulse" />
+                        <p className="text-sm text-muted-foreground">Searching patients...</p>
                       </div>
                     ) : (
-                      <div className="rounded-md border">
-                        <div className="grid grid-cols-12 bg-muted/50 p-3 text-xs font-medium text-muted-foreground">
-                          <div className="col-span-4">Patient</div>
-                          <div className="col-span-4">Age</div>
-                          <div className="col-span-1">Gender</div>
-                          <div className="col-span-2">Blood Type</div>
-                          <div className="col-span-1"></div>
-                        </div>
-                        <div className="divide-y">
-                          {displayPatients.map((patient) => (
-                            <div
-                              key={patient.id}
-                              className="grid grid-cols-12 items-center p-3 text-sm hover:bg-muted/50 transition-colors"
-                            >
-                              <div className="col-span-4 font-medium min-w-0 truncate">
-                                <Link href={`/patients/${patient.id}`} className="hover:underline hover:text-primary transition-colors">
-                                  {patient.name}
-                                </Link>
-                              </div>
-                              <div className="col-span-4 text-muted-foreground min-w-0 truncate">{ageLabel(patient.dateOfBirth)}</div>
-                              <div className="col-span-1 text-muted-foreground capitalize min-w-0 truncate">{patient.gender}</div>
-                              <div className="col-span-2 min-w-0">
-                                <Badge variant="outline" className="truncate">{patient.bloodType ?? "—"}</Badge>
-                              </div>
-                              <div className="col-span-1 text-right">
-                                <Button variant="ghost" size="sm" asChild>
-                                  <Link href={`/patients/${patient.id}`}>
-                                    View <ChevronRight className="ml-1 h-3.5 w-3.5" />
-                                  </Link>
-                                </Button>
-                              </div>
+                      (() => {
+                        const displayPatients = patientSearchMode ? patientSearchResults : patients;
+                        return displayPatients.length === 0 ? (
+                          <div className="flex flex-col items-center py-10 text-center">
+                            <Users className="mb-3 h-10 w-10 text-muted-foreground/40" />
+                            <p className="text-sm text-muted-foreground">
+                              {patientSearchMode ? "No patients found." : "No patients under your care yet."}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="rounded-md border">
+                            <div className="grid grid-cols-12 bg-muted/50 p-3 text-xs font-medium text-muted-foreground">
+                              <div className="col-span-4">Patient</div>
+                              <div className="col-span-4">Age</div>
+                              <div className="col-span-1">Gender</div>
+                              <div className="col-span-2">Blood Type</div>
+                              <div className="col-span-1"></div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()
+                            <div className="divide-y">
+                              {displayPatients.map((patient) => (
+                                <div
+                                  key={patient.id}
+                                  className="grid grid-cols-12 items-center p-3 text-sm hover:bg-muted/50 transition-colors"
+                                >
+                                  <div className="col-span-4 font-medium min-w-0 truncate">
+                                    <Link href={`/patients/${patient.id}`} className="hover:underline hover:text-primary transition-colors">
+                                      {patient.name}
+                                    </Link>
+                                  </div>
+                                  <div className="col-span-4 text-muted-foreground min-w-0 truncate">{ageLabel(patient.dateOfBirth)}</div>
+                                  <div className="col-span-1 text-muted-foreground capitalize min-w-0 truncate">{patient.gender}</div>
+                                  <div className="col-span-2 min-w-0">
+                                    <Badge variant="outline" className="truncate">{patient.bloodType ?? "—"}</Badge>
+                                  </div>
+                                  <div className="col-span-1 text-right">
+                                    <Button variant="ghost" size="sm" asChild>
+                                      <Link href={`/patients/${patient.id}`}>
+                                        View <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                                      </Link>
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>

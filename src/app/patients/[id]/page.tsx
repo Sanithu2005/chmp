@@ -8,6 +8,7 @@ import {
   getChildGrowthRecords,
   getChildVaccinations,
   isParentOfPatient,
+  getVisitSummariesForPatient,
 } from "@/lib/queries";
 import PatientDetail from "@/components/patient/patient-detail";
 import type { Metadata } from "next";
@@ -35,13 +36,19 @@ export default async function PatientDetailPage({
     if (!isLinked) redirect("/parent");
   }
 
-  const [appointments, prescriptions, growthRecords, vaccinations] =
+  const [appointments, prescriptions, growthRecords, vaccinations, rawVisitSummaries] =
     await Promise.all([
       getChildAppointments(id),
       getChildPrescriptions(id),
       getChildGrowthRecords(id),
       getChildVaccinations(id),
+      getVisitSummariesForPatient(id),
     ]);
+
+  const visitSummaries = rawVisitSummaries.map((s) => ({
+    ...s,
+    createdAt: s.createdAt.toISOString(),
+  }));
 
   return (
     <PatientDetail
@@ -53,6 +60,7 @@ export default async function PatientDetailPage({
       prescriptions={prescriptions}
       growthRecords={growthRecords}
       vaccinations={vaccinations}
+      visitSummaries={visitSummaries}
     />
   );
 }

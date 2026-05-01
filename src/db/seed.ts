@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import * as schema from "./schema";
 import * as dotenv from "dotenv";
 import { auth } from "../lib/auth";
+import { computeZScores } from "../lib/who-lms";
 
 dotenv.config({ path: ".env" });
 
@@ -256,14 +257,31 @@ async function seed() {
 
   // ── 8. Insert Growth Records ───────────────────────────────────────────────
   console.log("📏 Seeding Growth Records...");
-  await db.insert(schema.growthRecords).values([
-    { patientId: sanuli.id, date: "2023-08-15", weightKg: 3.2, heightCm: 50, ageInWeeks: 0, recordedById: pediatricianId },
-    { patientId: sanuli.id, date: "2023-10-12", weightKg: 5.1, heightCm: 57, ageInWeeks: 8, recordedById: pediatricianId },
-    { patientId: sanuli.id, date: "2023-12-06", weightKg: 6.3, heightCm: 62, ageInWeeks: 16, recordedById: pediatricianId },
-    { patientId: sanuli.id, date: "2024-01-15", weightKg: 6.8, heightCm: 64, ageInWeeks: 21, recordedById: pediatricianId },
-    { patientId: thehan.id, date: "2023-11-20", weightKg: 3.5, heightCm: 51, ageInWeeks: 0, recordedById: pediatricianId },
-    { patientId: thehan.id, date: "2024-01-20", weightKg: 5.5, heightCm: 58, ageInWeeks: 8, recordedById: pediatricianId },
-  ]);
+
+  const seededGrowthRecords = [
+    { patientId: sanuli.id, gender: "female" as const, date: "2023-08-15", weightKg: 3.2, heightCm: 50, ageInWeeks: 0, recordedById: pediatricianId },
+    { patientId: sanuli.id, gender: "female" as const, date: "2023-10-12", weightKg: 5.1, heightCm: 57, ageInWeeks: 8, recordedById: pediatricianId },
+    { patientId: sanuli.id, gender: "female" as const, date: "2023-12-06", weightKg: 6.3, heightCm: 62, ageInWeeks: 16, recordedById: pediatricianId },
+    { patientId: sanuli.id, gender: "female" as const, date: "2024-01-15", weightKg: 6.8, heightCm: 64, ageInWeeks: 21, recordedById: pediatricianId },
+    { patientId: thehan.id, gender: "male" as const, date: "2023-11-20", weightKg: 3.5, heightCm: 51, ageInWeeks: 0, recordedById: pediatricianId },
+    { patientId: thehan.id, gender: "male" as const, date: "2024-01-20", weightKg: 5.5, heightCm: 58, ageInWeeks: 8, recordedById: pediatricianId },
+  ];
+
+  await db.insert(schema.growthRecords).values(
+    seededGrowthRecords.map((r) => {
+      const zs = computeZScores(r.gender, r.ageInWeeks, r.weightKg, r.heightCm);
+      return {
+        patientId: r.patientId,
+        date: r.date,
+        weightKg: r.weightKg,
+        heightCm: r.heightCm,
+        ageInWeeks: r.ageInWeeks,
+        recordedById: r.recordedById,
+        weightForAgeZScore: zs.weightForAgeZScore,
+        heightForAgeZScore: zs.heightForAgeZScore,
+      };
+    })
+  );
 
   // ── 9. Insert Doctor Availability ──────────────────────────────────────────
   console.log("📅 Seeding Doctor Availability...");
