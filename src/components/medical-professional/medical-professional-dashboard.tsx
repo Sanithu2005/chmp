@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { authClient } from "@/lib/auth-client";
 import { useRouter } from "next/navigation";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
+import { BabyThemedBg } from "@/components/layout/baby-themed-bg";
 import { Footer } from "@/components/layout/footer";
 import { ManageAvailabilityModal } from "@/components/modals/manage-availability-modal";
 import { confirmAppointment } from "@/lib/actions";
@@ -170,8 +171,10 @@ export default function MedicalProfessionalDashboard({
       />
 
       {/* Main Content */}
-      <main className="flex-1 space-y-6 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full">
-        {/* Stats */}
+      <div className="relative flex-1">
+        <BabyThemedBg />
+        <main className="relative flex-1 space-y-6 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full">
+          {/* Stats */}
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -583,6 +586,7 @@ export default function MedicalProfessionalDashboard({
 
         </Tabs>
       </main>
+      </div>
       <Footer />
     </div>
   );

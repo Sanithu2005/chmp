@@ -29,6 +29,7 @@ import { Separator } from "@/components/ui/separator";
 import { authClient } from "@/lib/auth-client";
 import { ageLabel } from "@/lib/utils";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
+import { BabyThemedBg } from "@/components/layout/baby-themed-bg";
 import { Footer } from "@/components/layout/footer";
 import { AddPrescriptionModal } from "@/components/modals/add-prescription-modal";
 import { AddGrowthRecordModal } from "@/components/modals/add-growth-record-modal";
@@ -179,8 +180,10 @@ export default function PatientDetail({
         onLogout={handleLogout}
       />
 
-      <main className="flex-1 space-y-6 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full">
-        {/* Back + Patient Hero */}
+      <div className="relative flex-1">
+        <BabyThemedBg />
+        <main className="relative flex-1 space-y-6 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full">
+          {/* Back + Patient Hero */}
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" asChild>
             <Link href={isMedicalProfessional ? "/medical-professional" : "/parent"}>
@@ -588,6 +591,7 @@ export default function PatientDetail({
           </TabsContent>
         </Tabs>
       </main>
+      </div>
 
       {/* Administer vaccine modal */}
       {administerTarget && (

@@ -28,6 +28,7 @@ import { authClient } from "@/lib/auth-client";
 import { ageLabel, computeVaccinationStatus } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { DashboardHeader } from "@/components/layout/dashboard-header";
+import { BabyThemedBg } from "@/components/layout/baby-themed-bg";
 import { Footer } from "@/components/layout/footer";
 import { AddPatientModal } from "@/components/modals/add-patient-modal";
 import { AddAppointmentModal } from "@/components/modals/add-appointment-modal";
@@ -160,8 +161,10 @@ export default function ParentDashboard({
         onLogout={handleLogout}
       />
 
-      <main className="flex-1 space-y-6 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full">
-        {/* No children */}
+      <div className="relative flex-1">
+        <BabyThemedBg />
+        <main className="relative flex-1 space-y-6 p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full">
+          {/* No children */}
         {!primaryChild ? (
           <Card className="flex flex-col items-center justify-center py-20 text-center">
             <Baby className="mb-4 h-12 w-12 text-muted-foreground/40" />
@@ -475,6 +478,7 @@ export default function ParentDashboard({
           </>
         )}
       </main>
+      </div>
       <Footer />
     </div>
   );
